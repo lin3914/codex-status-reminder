@@ -1,0 +1,106 @@
+name: Prepare signed macOS draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing reviewed version tag, for example v1.9.12
+        required: true
+        type: string
+      architectures:
+        description: First public binary defaults to Apple Silicon; Intel requires completed real-device QA
+        required: true
+        type: choice
+        default: arm64
+        options: [arm64, "arm64 x86_64"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signed-release
+  cancel-in-progress: false
+
+jobs:
+  package:
+    # Configure required reviewer / tag restriction BEFORE adding any secrets.
+    environment: release
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      CODEX_COMPANION_RELEASE_ARCHS: ${{ inputs.architectures }}
+      CODEX_COMPANION_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      CODEX_COMPANION_NOTARY_PROFILE: CodexStatusReminderRelease
+      CODEX_COMPANION_KEYCHAIN: ${{ runner.temp }}/codex-release.keychain-db
+    steps:
+      - name: Validate input without executing it as shell code
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 2
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: command -v rg >/dev/null || brew install ripgrep
+      - name: Verify reviewed tag, rights, tests and dependencies before reading certificates
+        run: |
+          test "$RELEASE_TAG" = "v$(node -p 'require("./package.json").version')"
+          npm run check:binary-publication
+          npm run check:electron-support
+          npm run audit:public
+          npm test
+          npm run audit:dependencies
+      - name: Import Developer ID into temporary keychain
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        shell: bash
+        run: |
+          test -n "$CERTIFICATE_BASE64" && test -n "$KEYCHAIN_PASSWORD"
+          certificate="$RUNNER_TEMP/codex-release.p12"
+          keychain="$RUNNER_TEMP/codex-release.keychain-db"
+          printf '%s' "$CERTIFICATE_BASE64" | /usr/bin/base64 --decode > "$certificate"
+          chmod 600 "$certificate"
+          /usr/bin/security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          /usr/bin/security set-keychain-settings -lut 21600 "$keychain"
+          /usr/bin/security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          /usr/bin/security import "$certificate" -P "$CERTIFICATE_PASSWORD" -t cert -f pkcs12 -k "$keychain" -T /usr/bin/codesign
+          /usr/bin/security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$keychain"
+          /usr/bin/security list-keychains -d user -s "$keychain"
+      - name: Configure notarization in the same temporary keychain
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool store-credentials "$CODEX_COMPANION_NOTARY_PROFILE" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" --keychain "$RUNNER_TEMP/codex-release.keychain-db"
+      - name: Build, sign, notarize, staple and check Gatekeeper
+        run: npm run package:macos
+      - name: Local architecture packaged UI smoke before drafting downloads
+        run: |
+          npm run build
+          npm run test:renderer
+      - name: Attach only approved binaries to a DRAFT prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true
+          else
+            gh release create "$RELEASE_TAG" --draft --prerelease --title "CodeX状态提醒 $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md --verify-tag
+          fi
+          gh release upload "$RELEASE_TAG" .build/releases/*.zip .build/releases/SHA256SUMS
+      - name: Remove temporary certificate and keychain on every exit
+        if: always()
+        shell: bash
+        run: |
+          /usr/bin/security delete-keychain "$RUNNER_TEMP/codex-release.keychain-db" || true
+          /bin/rm -f "$RUNNER_TEMP/codex-release.p12"

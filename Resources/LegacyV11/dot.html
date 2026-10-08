@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="pet-status-dot.css">
+  <title>CodeX状态提醒</title>
+</head>
+<body>
+  <div id="root" class="status-dot-root">
+    <button id="dot" type="button" class="status-dot-button is-neutral is-idle" aria-label="Codex 状态">
+      <svg class="status-dot-svg" viewBox="0 0 44 44" aria-hidden="true">
+        <defs>
+          <linearGradient id="time-ring-gradient" x1="8" y1="8" x2="36" y2="36" gradientUnits="userSpaceOnUse" color-interpolation="sRGB">
+            <stop class="time-ring-gradient-start" offset="0"></stop>
+            <stop class="time-ring-gradient-mid" offset="0.5"></stop>
+            <stop class="time-ring-gradient-end" offset="1"></stop>
+          </linearGradient>
+          <linearGradient id="quota-ring-gradient" x1="10" y1="10" x2="34" y2="34" gradientUnits="userSpaceOnUse" color-interpolation="sRGB">
+            <stop class="quota-ring-gradient-start" offset="0"></stop>
+            <stop class="quota-ring-gradient-mid" offset="0.5"></stop>
+            <stop class="quota-ring-gradient-end" offset="1"></stop>
+          </linearGradient>
+        </defs>
+        <!--
+          Paint the inner band first, then let the outer band cover the 0.5px
+          overlap.  The overlap is intentional: two independently antialiased
+          strokes must not leave a pale seam at their shared edge.
+        -->
+        <circle class="status-dot-ring-track is-quota" cx="22" cy="22" r="15.5" pathLength="100"></circle>
+        <circle id="quota-ring" class="status-dot-ring-progress is-quota" cx="22" cy="22" r="15.5" pathLength="100" stroke-dasharray="100"></circle>
+        <circle class="status-dot-ring-track is-time" cx="22" cy="22" r="19" pathLength="100"></circle>
+        <circle id="time-ring" class="status-dot-ring-progress is-time" cx="22" cy="22" r="19" pathLength="100" stroke-dasharray="100"></circle>
+        <circle class="status-dot-center" cx="22" cy="22" r="13.75"></circle>
+      </svg>
+      <span id="value" class="status-dot-value" aria-hidden="true">
+        <span class="status-dot-number is-unavailable">–</span>
+      </span>
+    </button>
+  </div>
+  <script>
+    (() => {
+      const dot = document.getElementById("dot");
+      const value = document.getElementById("value");
+      const timeRing = document.getElementById("time-ring");
+      const quotaRing = document.getElementById("quota-ring");
+      let didDrag = false;
+      let dragging = false;
+      let hovered = false;
+
+      // Keep the status label discrete, but interpolate the visual palette
+      // continuously from healthy green through watch yellow to critical
+      // orange. The class remains the fallback for older snapshots or the
+      // neutral/unavailable state.
+      const healthPalettes = {
+        healthy: {
+          // A single cool track is shared by both bands so the seam is a
+          // continuous base colour instead of two pale strokes stacked on
+          // top of each other.
+          track: [165, 223, 228],
+          start: [105, 238, 174],
+          mid: [69, 221, 160],
+          end: [39, 204, 143],
+          center: [232, 255, 247],
+          ink: [16, 63, 55],
+        },
+        watch: {
+          track: [165, 223, 228],
+          start: [239, 217, 124],
+          mid: [223, 198, 102],
+          end: [201, 164, 61],
+          center: [255, 246, 218],
+          ink: [87, 67, 22],
+        },
+        critical: {
+          track: [165, 223, 228],
+          start: [239, 170, 125],
+          mid: [223, 137, 98],
+          end: [207, 104, 70],
+          center: [255, 231, 216],
+          ink: [88, 47, 27],
+        },
+      };
+      const healthColorProperties = {
+        track: "--ring-track",
+        start: "--quota-ring-start",
+        mid: "--quota-ring-mid",
+        end: "--quota-ring-end",
+        center: "--center-fill",
+        ink: "--dot-ink",
+      };
+
+      const clampUnit = (value) => Math.max(0, Math.min(1, value));
+      const mixColor = (left, right, amount) => left.map((channel, index) =>
+        Math.round(channel + (right[index] - channel) * amount));
+      const colorString = (rgb) => `rgb(${rgb.join(", ")})`;
+
+      const applyHealthColors = (rawProgress) => {
+        const progress = Number(rawProgress);
+        if (!Number.isFinite(progress)) {
+          Object.values(healthColorProperties).forEach((property) => {
+            dot.style.removeProperty(property);
+          });
+          return;
+        }
+        const valueProgress = clampUnit(progress);
+        const left = valueProgress <= 0.5
+          ? healthPalettes.healthy
+          : healthPalettes.watch;
+        const right = valueProgress <= 0.5
+          ? healthPalettes.watch
+          : healthPalettes.critical;
+        const blendProgress = valueProgress <= 0.5
+          ? valueProgress * 2
+          : (valueProgress - 0.5) * 2;
+        Object.entries(healthColorProperties).forEach(([key, property]) => {
+          dot.style.setProperty(
+            property,
+            colorString(mixColor(left[key], right[key], blendProgress)),
+          );
+        });
+      };
+
+      const send = (payload) => {
+        window.webkit?.messageHandlers?.dot?.postMessage(payload);
+      };
+
+      window.renderStatusDot = (state) => {
+        document.documentElement.lang = state?.locale || "zh-CN";
+        document.title = state?.appName || "CodeX状态提醒";
+        const health = state?.health || "neutral";
+        const taskClass = state?.runningCount > 0
+          ? "has-active-tasks"
+          : state?.unreadCount > 0 ? "has-unread-tasks" : "is-idle";
+        dot.className = `status-dot-button is-${health} ${taskClass}${dragging ? " is-dragging" : ""}`;
+        applyHealthColors(state?.healthProgress);
+        dot.setAttribute("aria-label", state?.accessibilityLabel || "Codex 状态");
+        timeRing.style.strokeDashoffset = String(-(100 - (state?.timeRemainingPercent || 0)));
+        quotaRing.style.strokeDashoffset = String(-(100 - (state?.quotaRemainingPercent || 0)));
+
+        if (state?.unreadCount > 0) {
+          const text = state.unreadCount > 99 ? "99+" : String(state.unreadCount);
+          const compact = text.length > 2 ? " is-compact" : "";
+          value.innerHTML = `<span class="status-dot-number is-task-count${compact}">${text}</span>`;
+        } else if (state?.quotaAvailable) {
+          const text = String(Math.round(state.quotaRemainingPercent || 0));
+          const compact = text.length > 2 ? " is-compact" : "";
+          value.innerHTML = `<span class="status-dot-number${compact}">${text}</span>`;
+        } else {
+          value.innerHTML = '<span class="status-dot-number is-unavailable">–</span>';
+        }
+      };
+
+      dot.addEventListener("mouseenter", () => {
+        hovered = true;
+        send({ type: "enter" });
+      });
+      dot.addEventListener("mouseleave", () => {
+        hovered = false;
+        if (!dragging) send({ type: "leave" });
+      });
+      dot.addEventListener("mousedown", (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        send({ type: "enter" });
+        const origin = { x: event.screenX, y: event.screenY };
+        let last = { ...origin };
+        dragging = false;
+
+        const onMove = (moveEvent) => {
+          const totalDx = moveEvent.screenX - origin.x;
+          const totalDy = moveEvent.screenY - origin.y;
+          if (!dragging && Math.hypot(totalDx, totalDy) >= 3) {
+            dragging = true;
+            dot.classList.add("is-dragging");
+            send({ type: "dragStart" });
+          }
+          if (!dragging) return;
+          const dx = moveEvent.screenX - last.x;
+          const dy = moveEvent.screenY - last.y;
+          last = { x: moveEvent.screenX, y: moveEvent.screenY };
+          if (dx !== 0 || dy !== 0) send({ type: "move", dx, dy });
+        };
+
+        const onUp = () => {
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+          didDrag = dragging;
+          dragging = false;
+          dot.classList.remove("is-dragging");
+          send({ type: "dragEnd" });
+          if (!hovered) send({ type: "leave" });
+        };
+
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+      });
+      dot.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (didDrag) {
+          didDrag = false;
+          return;
+        }
+        send({ type: "click" });
+      });
+      dot.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          send({ type: "click" });
+        }
+      });
+      window.companion?.onSnapshot?.((state) => {
+        window.renderStatusDot(state);
+      });
+      send({ type: "ready" });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+{
+  "source": "package-lock.json metadata; full upstream license texts govern",
+  "electron": "43.7.9",
+  "dependencies": [
+    {
+      "name": "@electron-internal/extract-zip",
+      "version": "1.0.5",
+      "license": "BSD-2-Clause",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "@electron/asar",
+      "version": "4.2.1",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "@electron/get",
+      "version": "5.1.0",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "@electron/notarize",
+      "version": "3.1.1",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "@electron/osx-sign",
+      "version": "2.7.0",
+      "license": "BSD-2-Clause",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "@types/node",
+      "version": "24.13.3",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "@xmldom/xmldom",
+      "version": "0.9.11",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "balanced-match",
+      "version": "4.0.4",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "base64-js",
+      "version": "1.5.1",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "brace-expansion",
+      "version": "5.0.9",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "debug",
+      "version": "4.4.3",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "electron",
+      "version": "43.7.9",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "env-paths",
+      "version": "3.0.0",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "err-code",
+      "version": "2.0.3",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "glob",
+      "version": "13.0.6",
+      "license": "BlueOak-1.0.0",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "graceful-fs",
+      "version": "4.2.11",
+      "license": "ISC",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "isbinaryfile",
+      "version": "4.0.10",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "lru-cache",
+      "version": "11.5.2",
+      "license": "BlueOak-1.0.0",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "minimatch",
+      "version": "10.2.6",
+      "license": "BlueOak-1.0.0",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "minipass",
+      "version": "7.1.3",
+      "license": "BlueOak-1.0.0",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "ms",
+      "version": "2.1.3",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "path-scurry",
+      "version": "2.0.2",
+      "license": "BlueOak-1.0.0",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "plist",
+      "version": "3.1.1",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "progress",
+      "version": "2.0.3",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "promise-retry",
+      "version": "2.0.1",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "retry",
+      "version": "0.12.0",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "semver",
+      "version": "7.8.5",
+      "license": "ISC",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "sumchecker",
+      "version": "3.0.1",
+      "license": "Apache-2.0",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "undici",
+      "version": "7.29.0",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "undici-types",
+      "version": "7.18.2",
+      "license": "MIT",
+      "role": "build-only dependency"
+    },
+    {
+      "name": "xmlbuilder",
+      "version": "15.1.1",
+      "license": "MIT",
+      "role": "build-only dependency"
+    }
+  ]
+}

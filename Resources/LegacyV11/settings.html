@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="settings.css">
+  <title>CodeX状态提醒</title>
+</head>
+<body>
+  <main class="settings-shell">
+    <header class="settings-header">
+      <img class="settings-mark" src="app-icon.png" alt="" aria-hidden="true">
+      <div class="settings-heading">
+        <h1 data-copy="appName">CodeX状态提醒</h1>
+        <p data-copy="subtitle">桌面任务与额度状态</p>
+      </div>
+      <div class="settings-meta">
+        <span id="app-version" class="settings-version"></span>
+        <span id="save-state" class="save-state" aria-live="polite" data-copy="autoSave">设置会自动保存</span>
+      </div>
+    </header>
+
+    <div id="settings-content">
+      <section class="connection-overview" aria-labelledby="connection-overview-title">
+        <div id="connection-card" class="connection-summary" data-state="checking" aria-live="polite">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <div class="connection-main">
+            <strong id="connection-overview-title"></strong>
+            <small id="connection-overview-description"></small>
+          </div>
+          <button id="connection-details-toggle" class="disclosure-button" type="button" aria-expanded="false">
+            <span data-copy="details">详情</span>
+            <span aria-hidden="true">⌄</span>
+          </button>
+        </div>
+        <div id="connection-details" class="connection-details" hidden>
+          <dl>
+            <div><dt data-copy="connectionMethod">连接方式</dt><dd id="connection-source"></dd></div>
+            <div><dt data-copy="connectionPath">数据位置</dt><dd><code id="connection-path"></code></dd></div>
+            <div><dt data-copy="lastSync">最近同步</dt><dd id="connection-last-sync"></dd></div>
+            <div><dt data-copy="connectionScope">读取范围</dt><dd data-copy="connectionScopeValue">任务、额度和未读状态；不会修改 Codex 数据</dd></div>
+          </dl>
+          <div class="inline-actions">
+            <button id="restore-codex-folder" class="secondary-button" type="button" data-copy="restoreAutomatic">恢复自动检测</button>
+            <button id="choose-codex-folder" class="secondary-button" type="button" data-copy="chooseFolder">选择数据文件夹…</button>
+          </div>
+        </div>
+        <div id="connection-recovery-actions" class="inline-actions connection-recovery-actions" hidden>
+          <button id="connection-open-codex" class="secondary-button" type="button" data-copy="openCodex">打开 Codex</button>
+          <button id="connection-retry-codex" class="secondary-button" type="button" data-copy="retryNow">立即重试</button>
+        </div>
+      </section>
+
+      <section id="menu-bar-warning" class="menu-bar-warning" role="status" hidden>
+        <span class="menu-bar-warning-icon" aria-hidden="true">!</span>
+        <div>
+          <strong data-copy="menuBarHiddenTitle">macOS 没有显示菜单栏图标</strong>
+          <small data-copy="menuBarHiddenDescription">请在“菜单栏”设置的“允许在菜单栏显示”中打开 CodeX状态提醒。</small>
+        </div>
+        <button id="open-menu-bar-settings" class="secondary-button" type="button" data-copy="openMenuBarSettings">打开菜单栏设置</button>
+      </section>
+
+      <section class="settings-section" aria-labelledby="general-title">
+        <h2 id="general-title" data-copy="general">常规</h2>
+        <div class="settings-card">
+          <label class="settings-select-row" for="locale">
+            <span class="settings-copy">
+              <strong data-copy="language">语言</strong>
+              <small data-copy="languageDescription">菜单、设置、任务和新提醒使用的语言</small>
+            </span>
+            <select id="locale" aria-label="Language">
+              <option value="system" data-copy="followSystem">跟随系统</option>
+              <option value="zh-CN">简体中文</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <div class="settings-divider"></div>
+          <label class="settings-row" for="showMenuBarQuota">
+            <span class="settings-copy">
+              <strong data-copy="showMenuBarQuota">菜单栏显示剩余周额度</strong>
+              <small data-copy="showMenuBarQuotaDescription">开启时显示小星标和百分比；关闭时显示完整图标</small>
+            </span>
+            <input id="showMenuBarQuota" type="checkbox" role="switch">
+          </label>
+          <div class="settings-divider"></div>
+          <label class="settings-row" for="showDesktopWidget">
+            <span class="settings-copy">
+              <strong data-copy="showDesktopWidget">显示桌面组件</strong>
+              <small data-copy="showDesktopWidgetDescription">关闭后隐藏桌面圆点，菜单栏入口仍可用</small>
+            </span>
+            <input id="showDesktopWidget" type="checkbox" role="switch">
+          </label>
+          <div class="settings-divider"></div>
+          <label class="settings-row" for="launchAtLogin">
+            <span class="settings-copy">
+              <strong data-copy="login">登录 Mac 后自动启动</strong>
+              <small data-copy="loginDescription">在菜单栏静默启动，不打开设置窗口</small>
+            </span>
+            <input id="launchAtLogin" type="checkbox" role="switch">
+          </label>
+        </div>
+      </section>
+
+      <section class="settings-section" aria-labelledby="notification-title">
+        <h2 id="notification-title" data-copy="notifications">任务完成提醒</h2>
+        <div class="settings-card">
+          <label class="settings-row" for="notifyOnUnreadCompletion">
+            <span class="settings-copy">
+              <strong data-copy="notification">显示任务完成提醒</strong>
+              <small data-copy="notificationDescription">Codex 不在前台时常驻显示；关闭提醒不会把任务标记为已读</small>
+            </span>
+            <input id="notifyOnUnreadCompletion" type="checkbox" role="switch">
+          </label>
+          <p id="notification-delivery" class="delivery-note" data-copy="notificationDelivery">提醒方式：应用内常驻卡片，不需要系统通知权限。</p>
+        </div>
+      </section>
+
+      <section class="settings-section" aria-labelledby="quota-health-title">
+        <h2 id="quota-health-title" data-copy="quotaHealth">额度健康度</h2>
+        <div class="settings-card quota-card">
+          <div class="quota-intro">
+            <strong data-copy="quotaExplanationTitle">额度比时间进度领先得越多，越需要提醒</strong>
+            <small data-copy="quotaExplanation">应用比较本周额度已用进度和本周时间已过进度。这里的小时数表示额度领先时间进度多久。</small>
+          </div>
+
+          <div class="quota-preset-grid" role="radiogroup" data-copy-aria="quotaHealth">
+            <button class="quota-preset" type="button" data-healthy="0.25" role="radio">
+              <strong data-copy="quota6">领先 6 小时</strong>
+              <small data-copy="quota6Description">12 小时进入告警</small>
+            </button>
+            <button class="quota-preset" type="button" data-healthy="0.5" role="radio">
+              <strong data-copy="quota12">领先 12 小时</strong>
+              <small data-copy="quota12Description">推荐 · 24 小时进入告警</small>
+            </button>
+            <button class="quota-preset" type="button" data-healthy="1" role="radio">
+              <strong data-copy="quota24">领先 24 小时</strong>
+              <small data-copy="quota24Description">48 小时进入告警</small>
+            </button>
+          </div>
+
+          <div class="quota-visual" role="img" data-copy-aria="quotaVisualLabel">
+            <div id="quota-track" class="quota-track">
+              <span class="quota-segment is-normal"></span>
+              <span class="quota-segment is-watch"></span>
+              <span class="quota-segment is-alert"></span>
+              <span id="healthy-marker" class="quota-marker is-normal"></span>
+              <span id="warning-marker" class="quota-marker is-alert"></span>
+            </div>
+            <div class="quota-state-labels">
+              <span><i class="state-dot is-normal"></i><b data-copy="normal">正常使用</b><small id="normal-range"></small></span>
+              <span><i class="state-dot is-watch"></i><b data-copy="watch">需留意</b><small id="watch-range"></small></span>
+              <span><i class="state-dot is-alert"></i><b data-copy="alert">额度告警</b><small id="alert-range"></small></span>
+            </div>
+          </div>
+
+          <p id="quota-rule-summary" class="quota-rule-summary"></p>
+          <button id="quota-custom-toggle" class="text-button" type="button" aria-expanded="false" data-copy="customizeQuota">自定义…</button>
+
+          <div id="quota-custom-settings" class="quota-custom-settings" hidden>
+            <label class="range-setting" for="quotaHealthyLeadDays">
+              <span>
+                <strong data-copy="normalLimit">正常上限</strong>
+                <small data-copy="normalLimitDescription">超过这个时长后进入“需留意”</small>
+              </span>
+              <output id="quotaHealthyLeadDaysValue"></output>
+              <input id="quotaHealthyLeadDays" type="range" min="0.25" max="3" step="0.25" value="0.5">
+            </label>
+            <label class="settings-row compact-row" for="custom-warning-enabled">
+              <span class="settings-copy">
+                <strong data-copy="customWarning">单独设置额度告警线</strong>
+                <small data-copy="customWarningDescription">关闭时，告警线自动为正常上限的 2 倍</small>
+              </span>
+              <input id="custom-warning-enabled" type="checkbox" role="switch">
+            </label>
+            <label id="warning-setting-row" class="select-setting" for="quotaWarningLeadDays" hidden>
+              <span>
+                <strong data-copy="warningPoint">额度告警起点</strong>
+                <small data-copy="warningPointDescription">达到这个时长后进入“额度告警”</small>
+              </span>
+              <select id="quotaWarningLeadDays"></select>
+            </label>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      const copy = {
+        "zh-CN": {
+          appName: "CodeX状态提醒",
+          subtitle: "桌面任务与额度状态",
+          autoSave: "设置会自动保存",
+          saving: "正在保存…",
+          saveFailed: "保存失败，请重试",
+          details: "详情",
+          connectionMethod: "连接方式",
+          connectionPath: "数据位置",
+          lastSync: "最近同步",
+          neverSynced: "等待首次同步",
+          connectionScope: "读取范围",
+          connectionScopeValue: "任务、额度和未读状态；不会修改 Codex 数据",
+          restoreAutomatic: "恢复自动检测",
+          chooseFolder: "选择数据文件夹…",
+          openCodex: "打开 Codex",
+          retryNow: "立即重试",
+          menuBarHiddenTitle: "macOS 没有显示菜单栏图标",
+          menuBarHiddenDescription: "请在系统“菜单栏”设置中允许显示本应用，并检查菜单栏管理工具。若仍不可见，请确认只运行一份最新版本并反馈；不需要还原整个控制中心。",
+          openMenuBarSettings: "打开菜单栏设置",
+          automatic: "自动发现",
+          manual: "手动选择",
+          general: "常规",
+          language: "语言",
+          languageDescription: "菜单、设置、任务和新提醒使用的语言",
+          followSystem: "跟随系统",
+          showDesktopWidget: "显示桌面组件",
+          showDesktopWidgetDescription: "关闭后隐藏桌面圆点，菜单栏入口仍可用",
+          showMenuBarQuota: "菜单栏显示剩余周额度",
+          showMenuBarQuotaDescription: "开启时显示小星标和百分比；关闭时显示完整图标",
+          login: "登录 Mac 后自动启动",
+          loginDescription: "在菜单栏静默启动，不打开设置窗口",
+          notifications: "任务完成提醒",
+          notification: "显示任务完成提醒",
+          notificationDescription: "Codex 不在前台时常驻显示；关闭提醒不会把任务标记为已读",
+          notificationDelivery: "提醒方式：应用内常驻卡片，不需要系统通知权限。",
+          quotaHealth: "额度健康度",
+          quotaExplanationTitle: "额度比时间进度领先得越多，越需要提醒",
+          quotaExplanation: "应用比较本周额度已用进度和本周时间已过进度。这里的小时数表示额度领先时间进度多久。",
+          quota6: "领先 6 小时",
+          quota6Description: "12 小时进入告警",
+          quota12: "领先 12 小时",
+          quota12Description: "推荐 · 24 小时进入告警",
+          quota24: "领先 24 小时",
+          quota24Description: "48 小时进入告警",
+          quotaVisualLabel: "正常使用、需留意和额度告警的区间",
+          normal: "正常使用",
+          watch: "需留意",
+          alert: "额度告警",
+          customizeQuota: "自定义…",
+          hideCustomization: "收起自定义",
+          normalLimit: "正常上限",
+          normalLimitDescription: "超过这个时长后进入“需留意”",
+          customWarning: "单独设置额度告警线",
+          customWarningDescription: "关闭时，告警线自动为正常上限的 2 倍",
+          warningPoint: "额度告警起点",
+          warningPointDescription: "达到这个时长后进入“额度告警”",
+          linkedRule: "超过 {healthy} 进入“需留意”，达到 {warning} 进入“额度告警”。",
+          connectionUpdated: "Codex 连接已更新"
+        },
+        en: {
+          appName: "Codex Companion",
+          subtitle: "Desktop task and quota status",
+          autoSave: "Changes save automatically",
+          saving: "Saving…",
+          saveFailed: "Could not save. Try again.",
+          details: "Details",
+          connectionMethod: "Connection",
+          connectionPath: "Data location",
+          lastSync: "Last synced",
+          neverSynced: "Waiting for the first sync",
+          connectionScope: "Read access",
+          connectionScopeValue: "Tasks, quota, and unread state; Codex data is never changed",
+          restoreAutomatic: "Use automatic detection",
+          chooseFolder: "Choose data folder…",
+          openCodex: "Open Codex",
+          retryNow: "Retry now",
+          menuBarHiddenTitle: "macOS is not showing the menu-bar icon",
+          menuBarHiddenDescription: "Allow this app in System Settings > Menu Bar and check menu-bar management tools. If it is still missing, confirm that only one current copy is running and report the issue. Do not reset Control Center.",
+          openMenuBarSettings: "Open Menu Bar Settings",
+          automatic: "Automatic discovery",
+          manual: "Manual selection",
+          general: "General",
+          language: "Language",
+          languageDescription: "Used by the menu, settings, tasks, and new alerts",
+          followSystem: "Follow System",
+          showDesktopWidget: "Show desktop widget",
+          showDesktopWidgetDescription: "Hide the desktop dot while keeping the menu-bar entry available",
+          showMenuBarQuota: "Show weekly quota in menu bar",
+          showMenuBarQuotaDescription: "On: small star and percentage; off: full icon",
+          login: "Start after I sign in to this Mac",
+          loginDescription: "Start quietly in the menu bar without opening Settings",
+          notifications: "Task completion alerts",
+          notification: "Show task completion alerts",
+          notificationDescription: "Stay visible while Codex is not frontmost; closing an alert does not mark the task as read",
+          notificationDelivery: "Delivery: a persistent in-app card. No system notification permission is required.",
+          quotaHealth: "Quota health",
+          quotaExplanationTitle: "The farther quota runs ahead of time, the more attention it needs",
+          quotaExplanation: "The app compares weekly quota used with weekly time elapsed. Hours show how far quota usage is ahead of time.",
+          quota6: "6 hours ahead",
+          quota6Description: "Alert at 12 hours",
+          quota12: "12 hours ahead",
+          quota12Description: "Recommended · Alert at 24 hours",
+          quota24: "24 hours ahead",
+          quota24Description: "Alert at 48 hours",
+          quotaVisualLabel: "Normal, watch, and quota alert ranges",
+          normal: "Normal",
+          watch: "Watch",
+          alert: "Quota alert",
+          customizeQuota: "Customize…",
+          hideCustomization: "Hide customization",
+          normalLimit: "Normal limit",
+          normalLimitDescription: "Past this point, status changes to Watch",
+          customWarning: "Set the quota alert line separately",
+          customWarningDescription: "When off, the alert line is twice the normal limit",
+          warningPoint: "Quota alert point",
+          warningPointDescription: "At this point, status changes to Quota alert",
+          linkedRule: "Past {healthy}, status changes to Watch; at {warning}, it changes to Quota alert.",
+          connectionUpdated: "Codex connection updated"
+        }
+      };
+
+      const settingKeys = [
+        "showDesktopWidget",
+        "showMenuBarQuota",
+        "notifyOnUnreadCompletion",
+        "launchAtLogin"
+      ];
+      const state = {
+        settings: null,
+        quotaCustomOpen: false,
+        quotaInitialized: false,
+        connectionDetailsOpen: false
+      };
+
+      const language = () => copy[state.settings?.effectiveLocale || "zh-CN"] || copy["zh-CN"];
+
+      function setStatus(messageKey = "autoSave", isError = false) {
+        const element = document.getElementById("save-state");
+        element.textContent = language()[messageKey] || messageKey;
+        element.classList.toggle("is-error", isError);
+      }
+
+      function clearInlineErrors() {
+        for (const element of document.querySelectorAll(".inline-setting-error")) {
+          element.remove();
+        }
+      }
+
+      function showInlineError(source) {
+        clearInlineErrors();
+        const host = source?.closest?.(
+          ".settings-row, .settings-select-row, .quota-card"
+        );
+        if (!host) return;
+        const message = document.createElement("small");
+        message.className = "inline-setting-error";
+        message.setAttribute("role", "alert");
+        message.textContent = language().saveFailed;
+        host.append(message);
+      }
+
+      function applyCopy() {
+        const next = language();
+        document.documentElement.lang = state.settings?.effectiveLocale || "zh-CN";
+        document.title = next.appName;
+        for (const element of document.querySelectorAll("[data-copy]")) {
+          const value = next[element.dataset.copy];
+          if (value) element.textContent = value;
+        }
+        for (const element of document.querySelectorAll("[data-copy-aria]")) {
+          const value = next[element.dataset.copyAria];
+          if (value) element.setAttribute("aria-label", value);
+        }
+      }
+
+      function formatHours(days) {
+        const hours = Math.round(Number(days || 0) * 24);
+        if (state.settings?.effectiveLocale === "en") {
+          return hours % 24 === 0 ? `${hours / 24}d` : `${hours}h`;
+        }
+        return hours % 24 === 0 ? `${hours / 24} 天` : `${hours} 小时`;
+      }
+
+      function formatLastSync(value) {
+        const timestamp = Number(value);
+        if (!Number.isFinite(timestamp) || timestamp <= 0) {
+          return language().neverSynced;
+        }
+        return new Intl.DateTimeFormat(
+          state.settings?.effectiveLocale === "en" ? "en" : "zh-CN",
+          {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+          }
+        ).format(new Date(timestamp));
+      }
+
+      function renderConnection() {
+        const connection = state.settings.codexConnection || {};
+        const valid = connection.valid === true;
+        const selected = connection.kind === "user-selected-folder";
+        const stateName = valid ? "connected" : connection.manualSelectionAvailable ? "missing" : "checking";
+        document.getElementById("connection-card").dataset.state = stateName;
+        document.getElementById("connection-overview-title").textContent = connection.title || "";
+        document.getElementById("connection-overview-description").textContent = valid
+          ? language().connectionScopeValue
+          : connection.description || "";
+        document.getElementById("connection-source").textContent = selected
+          ? language().manual
+          : language().automatic;
+        document.getElementById("connection-path").textContent = connection.pathLabel || "";
+        document.getElementById("connection-last-sync").textContent = formatLastSync(
+          connection.lastSuccessfulSyncAt
+        );
+        document.getElementById("choose-codex-folder").hidden = connection.manualSelectionAvailable !== true;
+        document.getElementById("restore-codex-folder").hidden = !selected;
+        document.getElementById("connection-recovery-actions").hidden = valid;
+        const details = document.getElementById("connection-details");
+        details.hidden = !state.connectionDetailsOpen;
+        document.getElementById("connection-details-toggle").setAttribute(
+          "aria-expanded",
+          String(state.connectionDetailsOpen)
+        );
+      }
+
+      function renderMenuBarStatus() {
+        const hiddenBySystem = state.settings.menuBarStatus?.state === "system-hidden";
+        document.getElementById("menu-bar-warning").hidden = !hiddenBySystem;
+      }
+
+      function renderQuota() {
+        const healthy = Number(state.settings.quotaHealthyLeadDays ?? 0.5);
+        const warning = Number(state.settings.quotaWarningLeadDays ?? healthy * 2);
+        const customWarning = state.settings.quotaHealthMode === "custom";
+        const presets = [0.25, 0.5, 1];
+        for (const button of document.querySelectorAll(".quota-preset")) {
+          const value = Number(button.dataset.healthy);
+          const selected = !customWarning && Math.abs(value - healthy) < 0.001;
+          button.classList.toggle("is-selected", selected);
+          button.setAttribute("aria-checked", String(selected));
+        }
+        if (
+          !state.quotaInitialized
+          && (
+            customWarning
+            || !presets.some((value) => Math.abs(value - healthy) < 0.001)
+          )
+        ) {
+          state.quotaCustomOpen = true;
+        }
+        state.quotaInitialized = true;
+        const custom = document.getElementById("quota-custom-settings");
+        custom.hidden = !state.quotaCustomOpen;
+        document.getElementById("quota-custom-toggle").textContent = state.quotaCustomOpen
+          ? language().hideCustomization
+          : language().customizeQuota;
+        document.getElementById("quota-custom-toggle").setAttribute(
+          "aria-expanded",
+          String(state.quotaCustomOpen)
+        );
+        const healthyInput = document.getElementById("quotaHealthyLeadDays");
+        healthyInput.value = String(healthy);
+        document.getElementById("quotaHealthyLeadDaysValue").textContent = formatHours(healthy);
+        document.getElementById("custom-warning-enabled").checked = customWarning;
+        document.getElementById("warning-setting-row").hidden = !customWarning;
+        const warningSelect = document.getElementById("quotaWarningLeadDays");
+        const options = [];
+        for (let value = healthy + 0.25; value <= 6.001; value += 0.25) {
+          const option = document.createElement("option");
+          option.value = String(Math.round(value * 4) / 4);
+          option.textContent = formatHours(value);
+          options.push(option);
+        }
+        warningSelect.replaceChildren(...options);
+        warningSelect.value = String(warning);
+        const visualMax = Math.max(warning * 1.25, healthy + 0.5, 1);
+        const healthyStop = Math.min(88, Math.max(12, healthy / visualMax * 100));
+        const warningStop = Math.min(94, Math.max(healthyStop + 8, warning / visualMax * 100));
+        const track = document.getElementById("quota-track");
+        track.style.setProperty("--healthy-stop", `${healthyStop}%`);
+        track.style.setProperty("--warning-stop", `${warningStop}%`);
+        document.getElementById("healthy-marker").style.left = `${healthyStop}%`;
+        const warningMarker = document.getElementById("warning-marker");
+        warningMarker.style.left = `${warningStop}%`;
+        warningMarker.classList.toggle("is-locked", !customWarning);
+        document.getElementById("normal-range").textContent = `≤ ${formatHours(healthy)}`;
+        document.getElementById("watch-range").textContent = `> ${formatHours(healthy)} · < ${formatHours(warning)}`;
+        document.getElementById("alert-range").textContent = `≥ ${formatHours(warning)}`;
+        document.getElementById("quota-rule-summary").textContent = language().linkedRule
+          .replace("{healthy}", formatHours(healthy))
+          .replace("{warning}", formatHours(warning));
+      }
+
+      function render(next) {
+        state.settings = next;
+        applyCopy();
+        document.getElementById("app-version").textContent = next.version || "";
+        document.getElementById("locale").value = next.locale;
+        for (const key of settingKeys) {
+          document.getElementById(key).checked = Boolean(next[key]);
+        }
+        renderConnection();
+        renderMenuBarStatus();
+        renderQuota();
+        setStatus();
+      }
+
+      async function update(patch) {
+        const source = document.activeElement;
+        setStatus("saving");
+        try {
+          const result = await window.companionSettings.update(patch);
+          clearInlineErrors();
+          render(result.settings);
+          return result;
+        } catch {
+          setStatus("saveFailed", true);
+          showInlineError(source);
+          return null;
+        }
+      }
+
+      document.getElementById("locale").addEventListener("change", (event) => {
+        void update({ locale: event.target.value });
+      });
+      for (const key of settingKeys) {
+        document.getElementById(key).addEventListener("change", (event) => {
+          void update({ [key]: event.target.checked });
+        });
+      }
+      document.getElementById("connection-details-toggle").addEventListener("click", () => {
+        state.connectionDetailsOpen = !state.connectionDetailsOpen;
+        renderConnection();
+      });
+      document.getElementById("choose-codex-folder").addEventListener("click", async () => {
+        const next = await window.companionSettings.chooseCodexFolder();
+        render(next);
+        setStatus("connectionUpdated");
+      });
+      document.getElementById("restore-codex-folder").addEventListener("click", async () => {
+        const next = await window.companionSettings.restoreDefaultCodexFolder();
+        render(next);
+        setStatus("connectionUpdated");
+      });
+      document.getElementById("connection-open-codex").addEventListener("click", async () => {
+        await window.companionSettings.openCodex();
+      });
+      document.getElementById("connection-retry-codex").addEventListener("click", async () => {
+        const next = await window.companionSettings.retryCodexConnection();
+        render(next);
+        setStatus("connectionUpdated");
+      });
+      document.getElementById("open-menu-bar-settings").addEventListener("click", async () => {
+        await window.companionSettings.openMenuBarSettings();
+      });
+      document.querySelectorAll(".quota-preset").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.quotaCustomOpen = false;
+          void update({
+            quotaHealthMode: "linked",
+            quotaHealthyLeadDays: Number(button.dataset.healthy)
+          });
+        });
+      });
+      document.getElementById("quota-custom-toggle").addEventListener("click", () => {
+        state.quotaCustomOpen = !state.quotaCustomOpen;
+        renderQuota();
+      });
+      document.getElementById("quotaHealthyLeadDays").addEventListener("change", (event) => {
+        void update({
+          quotaHealthMode: state.settings.quotaHealthMode,
+          quotaHealthyLeadDays: Number(event.target.value)
+        });
+      });
+      document.getElementById("custom-warning-enabled").addEventListener("change", (event) => {
+        void update({
+          quotaHealthMode: event.target.checked ? "custom" : "linked"
+        });
+      });
+      document.getElementById("quotaWarningLeadDays").addEventListener("change", (event) => {
+        void update({
+          quotaHealthMode: "custom",
+          quotaWarningLeadDays: Number(event.target.value)
+        });
+      });
+      window.companionSettings.onChanged((next) => render(next));
+      window.companionSettings.get().then(render);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.png binary
+*.icns binary
+*.zip binary
+*.html text
+*.swift text
+# Keep the official Chromium license bundle byte-for-byte; license text is
+# vendored data, not project code or a formatting target.
+licenses/LICENSES.chromium.html binary

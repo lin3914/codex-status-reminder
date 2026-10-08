@@ -1,0 +1,49 @@
+name: macOS tests and build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-26, macos-26-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Ensure source-check dependency
+        run: command -v rg >/dev/null || brew install ripgrep
+      - name: Public source and fixture tests (no Codex account required)
+        run: |
+          npm run audit:public
+          npm test
+      - name: Dependency audit
+        run: npm run audit:dependencies
+      - name: Build with the bundled runtime only
+        run: npm run build
+      - name: Check application metadata, helpers, resources and local signature
+        run: npm run check:release
+      - name: Packaged UI and real IPC smoke using synthetic data only
+        run: npm run test:renderer
+      - name: Completion event to persistent banner delivery (isolated synthetic tasks)
+        run: npm run test:notifications

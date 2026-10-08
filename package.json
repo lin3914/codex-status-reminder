@@ -1,0 +1,35 @@
+{
+  "name": "codex-companion-build",
+  "version": "1.9.13",
+  "private": true,
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "zsh scripts/run-tests.sh",
+    "build": "zsh scripts/build-app.sh",
+    "check:release": "zsh scripts/check-release-readiness.sh",
+    "check:distribution": "CODEX_COMPANION_DISTRIBUTION=1 zsh scripts/check-release-readiness.sh",
+    "package:macos": "zsh scripts/package-macos-release.sh",
+    "audit:public": "node scripts/audit-public-source.mjs",
+    "check:publication": "node scripts/check-publication.mjs source",
+    "check:binary-publication": "node scripts/check-publication.mjs binary",
+    "test:live": "CODEX_COMPANION_LIVE_TESTS=1 zsh scripts/run-tests.sh",
+    "test:renderer": "node scripts/run-renderer-tests.mjs",
+    "test:notifications": "node scripts/run-notification-tests.mjs",
+    "audit:dependencies": "npm audit --audit-level=high",
+    "check:electron-support": "node scripts/check-electron-support.mjs",
+    "validate:menu-bar-restarts": "node scripts/validate-menu-bar-restarts.mjs"
+  },
+  "devDependencies": {
+    "@electron/asar": "4.2.1",
+    "@electron/get": "5.1.0",
+    "@electron/notarize": "3.1.1",
+    "@electron/osx-sign": "2.7.0",
+    "electron": "43.7.9"
+  },
+  "allowScripts": {
+    "electron@43.7.9": true
+  }
+}
