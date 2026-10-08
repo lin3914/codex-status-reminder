@@ -6,6 +6,7 @@
 
 - macOS，Xcode Command Line Tools，Swift 6+。
 - Node.js 22；`.nvmrc` 用于版本选择。构建依赖由 package-lock.json 固定。
+- 项目 `.npmrc` 与 lockfile 使用公共 npm 源，不依赖开发者的公司镜像；版本和 tarball 完整性校验均保留。
 - ripgrep（`rg`）。若已使用 Homebrew，可通过 `brew install ripgrep` 安装；普通用户不需要这些开发工具。
 
 ```sh
