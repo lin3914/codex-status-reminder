@@ -27,7 +27,7 @@
     "@electron/get": "5.1.0",
     "@electron/notarize": "3.1.1",
     "@electron/osx-sign": "2.7.0",
-    "electron": "43.7.9"
+    "electron": "44.5.1"
   },
   "allowScripts": {
     "electron@43.7.9": true
