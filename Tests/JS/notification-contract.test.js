@@ -60,6 +60,13 @@ const cases = [
     assert.equal(restarted.state.pendingContent?.[t.id]?.body, t.progress);
     const read = run([], restarted.state, { unreadThreadIDs: new Set() });
     assert.equal(read.state.pendingContent?.[t.id], undefined);
+    for (const version of [2, 3]) {
+      const legacy = {version, initialized: true, completions: {[t.id]: t.completedAt}, pending: {[t.id]: t.completedAt}};
+      const migrated = run([t], legacy);
+      assert.equal(migrated.notifications.length, 0, "migration must not resend the same completion");
+      assert.equal(migrated.state.pendingContent?.[t.id]?.title, t.title,
+        "readable legacy pending content must become durable before a later data outage");
+    }
   }],
   ["pause and interruption alone do not produce a false new completion", () => {
     for (const state of ["completed", "unread", "running", "unknown"]) {

@@ -145,7 +145,16 @@ function planCompletionNotifications({
     if (completionAt <= 0) continue;
     const hasCursor = Object.hasOwn(completions, task.id);
     const previousCompletionAt = finiteTimestamp(completions[task.id]);
-    if (completionAt <= previousCompletionAt) continue;
+    if (completionAt <= previousCompletionAt) {
+      // v2/v3 pending reminders did not store content. Backfill a matching
+      // readable completion once, without generating a new delivery request.
+      if (pending[task.id] === completionAt && task.state === "unread" && unreadSet?.has(task.id)) {
+        const copy = notificationCopy(task, task.locale);
+        pendingContent[task.id] = {completedAt: completionAt,
+          title: copy.title.slice(0, 240), body: copy.body.slice(0, 320)};
+      }
+      continue;
+    }
 
     const wasDeferred = finiteTimestamp(deferred[task.id]) === completionAt;
     if (!hasCursor && !wasDeferred && completionAt <= previous.prunedBeforeAt) continue;
