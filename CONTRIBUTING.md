@@ -26,6 +26,8 @@ npm run test:notifications
 
 产物、暂存与发布输出必须在当前 checkout 的 `.build` 子目录内，不能指向应用程序、家目录或仓库根。开发者覆盖输出路径仍受该约束。`scripts/install-app.sh` 是历史本地迁移工具，默认直接拒绝运行；只有开发者明确设置 CODEX_COMPANION_ALLOW_DEVELOPMENT_INSTALL=1 才会替换本机安装版并处理本产品旧身份，不作为普通测试或公开安装入口。普通用户按 Finder 拖拽安装方式操作。
 
+两个隔离的界面测试进程使用软件截图，以避免 CI 虚拟 GPU 的 Viz 截图失败。应用本身的硬件加速设置未改，窗口、生产 preload、IPC、布局和关闭断言仍完整执行。该测试不能替代实机的 GPU 性能验证。
+
 ## 结构
 
 实际应用入口是 `ElectronApp/main.js`；`Resources/LegacyV11` 只是保留的资源目录名称，不依赖安装 Flux Island。NativeRecovery 是本应用的有限恢复 helper。
