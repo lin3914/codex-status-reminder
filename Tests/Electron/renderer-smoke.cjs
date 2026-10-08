@@ -3,6 +3,9 @@
 // Does not import the production main entry, read Codex, create a Tray,
 // register login items, or launch the installed app.
 const { app, BrowserWindow, ipcMain } = require("electron");
+// CI Macs may not expose a working virtual GPU/Viz capture surface. Use
+// software capture only in this isolated test process, not in the application.
+app.disableHardwareAcceleration();
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -169,6 +172,7 @@ app.whenReady().then(async () => {
     assert.deepEqual(legitimateErrors, []);
     fs.writeFileSync(path.join(reportDir, "renderer-smoke.json"), JSON.stringify({
       passed: true, checks, messages, electron: process.versions.electron,
+      renderingMode: "isolated-test-software-capture",
       data: "synthetic only; no Codex data or installed app touched",
       screenshots: ["dot.png", "panel.png", "settings.png", "quota-settings.png", "notification-collapsed.png", "notification.png"]
     }, null, 2) + "\n");

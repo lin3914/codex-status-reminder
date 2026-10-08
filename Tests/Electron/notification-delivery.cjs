@@ -3,6 +3,9 @@
 // synthetic tasks. Never read/write Codex data, change OS preferences, or
 // actually open a Codex conversation. All state is in this temporary profile.
 const { app, BrowserWindow, ipcMain, screen } = require("electron");
+// Keep real UI/IPC assertions on CI even without an accelerated capture
+// surface. This does not change hardware acceleration in the installed app.
+app.disableHardwareAcceleration();
 const assert = require("assert/strict");
 const fs = require("fs");
 const os = require("os");
@@ -19,7 +22,8 @@ app.setPath("userData", isolated);
 const reportDir = process.env.CODEX_COMPANION_SMOKE_REPORT || path.join(root, ".build/smoke");
 fs.mkdirSync(reportDir, { recursive: true });
 const main = fs.readFileSync(path.join(base, "main.js"), "utf8");
-const report = { checks: [], synthetic: true, codexDataAccess: false };
+const report = { checks: [], synthetic: true, codexDataAccess: false,
+  renderingMode: "isolated-test-software-capture" };
 const checked = message => { report.checks.push(message); console.log("PASS " + message); };
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const opened = [];

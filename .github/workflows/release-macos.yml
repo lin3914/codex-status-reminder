@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing reviewed version tag, for example v1.9.12
+        description: Existing reviewed version tag, for example v1.9.13
         required: true
         type: string
       architectures:
@@ -34,7 +34,6 @@ jobs:
       CODEX_COMPANION_RELEASE_ARCHS: ${{ inputs.architectures }}
       CODEX_COMPANION_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
       CODEX_COMPANION_NOTARY_PROFILE: CodexStatusReminderRelease
-      CODEX_COMPANION_KEYCHAIN: ${{ runner.temp }}/codex-release.keychain-db
     steps:
       - name: Validate input without executing it as shell code
         run: |
@@ -83,6 +82,8 @@ jobs:
         run: |
           xcrun notarytool store-credentials "$CODEX_COMPANION_NOTARY_PROFILE" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" --keychain "$RUNNER_TEMP/codex-release.keychain-db"
       - name: Build, sign, notarize, staple and check Gatekeeper
+        env:
+          CODEX_COMPANION_KEYCHAIN: ${{ runner.temp }}/codex-release.keychain-db
         run: npm run package:macos
       - name: Local architecture packaged UI smoke before drafting downloads
         run: |

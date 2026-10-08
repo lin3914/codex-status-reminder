@@ -12,6 +12,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-release-fixture-"));
 try {
   const releases = [{version:"44.1.0"},{version:"43.7.9"},{version:"42.3.0"},{version:"41.9.0"},{version:"46.0.0-beta.1"}];
+  const lock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
+  for (const dependency of Object.values(lock.packages)) {
+    if (dependency.resolved) assert.equal(new URL(dependency.resolved).hostname, "registry.npmjs.org",
+      "public builds must not depend on an internal or machine-specific registry");
+  }
+  assert.match(fs.readFileSync(path.join(root, ".npmrc"), "utf8"),
+    /^registry=https:\/\/registry[.]npmjs[.]org\/$/m);
   assert.deepEqual(electronSupport(releases, "43.4.1").supportedMajors, [44,43,42]);
   assert.equal(electronSupport(releases, "43.4.1").currentPatch, false);
   assert.equal(electronSupport(releases, "43.7.9").currentPatch, true);
@@ -47,6 +54,8 @@ try {
   assert.match(release, /--draft --prerelease/);
   assert.doesNotMatch(release, /--clobber|pull_request_target/);
   assert.match(release, /CODEX_COMPANION_KEYCHAIN: \$\{\{ runner\.temp \}\}\/codex-release\.keychain-db/);
+  assert.doesNotMatch(release.slice(0, release.indexOf("    steps:")), /runner\.temp/,
+    "runner context is not available in job-level env; only use it in steps");
   for (const script of ["sign-macos-app.mjs", "notarize-macos-app.mjs"]) {
     assert.match(fs.readFileSync(path.join(root, "scripts", script), "utf8"),
       /keychain: process\.env\.CODEX_COMPANION_KEYCHAIN/,

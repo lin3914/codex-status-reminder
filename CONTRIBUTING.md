@@ -6,6 +6,7 @@
 
 - macOS，Xcode Command Line Tools，Swift 6+。
 - Node.js 22；`.nvmrc` 用于版本选择。构建依赖由 package-lock.json 固定。
+- 项目 `.npmrc` 与 lockfile 使用公共 npm 源，不依赖开发者的公司镜像；版本和 tarball 完整性校验均保留。
 - ripgrep（`rg`）。若已使用 Homebrew，可通过 `brew install ripgrep` 安装；普通用户不需要这些开发工具。
 
 ```sh
@@ -24,6 +25,8 @@ npm run test:notifications
 构建不借用已安装的本应用、Flux Island 或个人 npm 缓存里的其他 runtime。它只使用与锁定依赖版本、架构匹配的 Electron 分发包，必要时通过 @electron/get 下载并核验校验值。生成应用携带 Electron／Chromium 许可。
 
 产物、暂存与发布输出必须在当前 checkout 的 `.build` 子目录内，不能指向应用程序、家目录或仓库根。开发者覆盖输出路径仍受该约束。`scripts/install-app.sh` 是历史本地迁移工具，默认直接拒绝运行；只有开发者明确设置 CODEX_COMPANION_ALLOW_DEVELOPMENT_INSTALL=1 才会替换本机安装版并处理本产品旧身份，不作为普通测试或公开安装入口。普通用户按 Finder 拖拽安装方式操作。
+
+两个隔离的界面测试进程使用软件截图，以避免 CI 虚拟 GPU 的 Viz 截图失败。应用本身的硬件加速设置未改，窗口、生产 preload、IPC、布局和关闭断言仍完整执行。该测试不能替代实机的 GPU 性能验证。
 
 ## 结构
 
