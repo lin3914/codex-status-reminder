@@ -5,7 +5,6 @@ const MAX_PENDING_NOTIFICATIONS = 100;
 // Give Codex read receipts time to follow the transcript completion. Only a
 // known, successfully read negative receipt can expire this grace period.
 const UNREAD_SETTLE_MS = 10 * 60_000;
-const SESSION_CLOCK_SKEW_MS = 5_000;
 
 function finiteTimestamp(value) {
   const timestamp = Number(value);
@@ -17,6 +16,7 @@ function normalizeCompletionNotificationState(value = {}) {
   const completions = {};
   const pending = {};
   const deferred = {};
+  const pendingContent = {};
   if (source.completions && typeof source.completions === "object") {
     for (const [threadID, completionAt] of Object.entries(source.completions)) {
       const timestamp = finiteTimestamp(completionAt);
@@ -37,12 +37,26 @@ function normalizeCompletionNotificationState(value = {}) {
       }
     }
   }
+  for (const [threadID, content] of Object.entries(source.pendingContent || {})) {
+    if (!Object.hasOwn(pending, threadID)
+        || finiteTimestamp(content?.completedAt) !== pending[threadID]) continue;
+    pendingContent[threadID] = {
+      completedAt: pending[threadID],
+      title: String(content.title || "").slice(0, 240),
+      body: String(content.body || "").slice(0, 320)
+    };
+  }
   return {
-    version: 3,
+    version: 4,
     initialized: source.initialized === true,
     completions,
     pending,
     deferred,
+    pendingContent,
+    remindersEnabled: typeof source.remindersEnabled === "boolean"
+      ? source.remindersEnabled : null,
+    mutedUntilAt: finiteTimestamp(source.mutedUntilAt),
+    prunedBeforeAt: finiteTimestamp(source.prunedBeforeAt),
     updatedAt: finiteTimestamp(source.updatedAt)
   };
 }
@@ -91,6 +105,12 @@ function planCompletionNotifications({
   const completions = { ...previous.completions };
   const pending = { ...previous.pending };
   const deferred = { ...previous.deferred };
+  const pendingContent = { ...previous.pendingContent };
+  // Retain the end of the muted interval even if no task/index was readable
+  // during it. An explicit enable action advances this cutoff immediately.
+  const mutedUntilAt = !enabled || previous.remindersEnabled === false
+    ? Math.max(previous.mutedUntilAt, finiteTimestamp(now))
+    : previous.mutedUntilAt;
   const notifications = [];
   const unreadSet = unreadThreadIDs instanceof Set
     ? unreadThreadIDs
@@ -104,11 +124,13 @@ function planCompletionNotifications({
   for (const threadID of Object.keys(pending)) {
     if (unreadSet && !unreadSet.has(threadID)) {
       delete pending[threadID];
+      delete pendingContent[threadID];
       continue;
     }
   }
   if (!enabled) {
     for (const threadID of Object.keys(pending)) delete pending[threadID];
+    for (const threadID of Object.keys(pendingContent)) delete pendingContent[threadID];
     // Disabling reminders consumes waiting completions, so enabling again
     // cannot backfill notifications the user explicitly chose not to receive.
     for (const [threadID, completionAt] of Object.entries(deferred)) {
@@ -125,24 +147,33 @@ function planCompletionNotifications({
     const previousCompletionAt = finiteTimestamp(completions[task.id]);
     if (completionAt <= previousCompletionAt) continue;
 
-    const completedDuringSession = completionAt >= sessionStartedAt - SESSION_CLOCK_SKEW_MS;
     const wasDeferred = finiteTimestamp(deferred[task.id]) === completionAt;
+    if (!hasCursor && !wasDeferred && completionAt <= previous.prunedBeforeAt) continue;
+    const completedDuringSession = completionAt >= sessionStartedAt;
     const staleUnknownTask = !hasCursor && !completedDuringSession && !wasDeferred;
-    if ((initialPass && !wasDeferred) || staleUnknownTask || !enabled || codexFrontmost === true) {
+    if ((initialPass && completionAt < sessionStartedAt && !wasDeferred)
+        || staleUnknownTask || !enabled || completionAt <= mutedUntilAt
+        || codexFrontmost === true) {
       completions[task.id] = completionAt;
       delete pending[task.id];
       delete deferred[task.id];
+      delete pendingContent[task.id];
       continue;
     }
 
     if (unreadSet?.has(task.id) && task.state === "unread" && codexFrontmost === false) {
-      notifications.push({
+      const content = {
         threadID: task.id,
         completedAt: completionAt,
         ...notificationCopy(task, task.locale)
-      });
+      };
+      notifications.push(content);
       completions[task.id] = completionAt;
       pending[task.id] = completionAt;
+      pendingContent[task.id] = {
+        completedAt: completionAt,
+        title: content.title.slice(0, 240), body: content.body.slice(0, 320)
+      };
       delete deferred[task.id];
       continue;
     }
@@ -150,24 +181,35 @@ function planCompletionNotifications({
     // Unknown foreground/read-receipt state is retryable, not a terminal
     // decision. Persist the candidate across restarts without polling faster.
     deferred[task.id] = completionAt;
-    if (codexFrontmost === false && unreadSet
+    if (codexFrontmost === false && unreadSet && !unreadSet.has(task.id)
         && now - completionAt >= UNREAD_SETTLE_MS) {
       completions[task.id] = completionAt;
       delete deferred[task.id];
     }
   }
 
+  const retainedCompletions = pruneCompletionCursors(completions);
+  const retainedPending = prunePendingNotifications(pending);
+  const prunedBeforeAt = Object.entries(completions).reduce((cutoff, [id, at]) =>
+    Object.hasOwn(retainedCompletions, id) ? cutoff : Math.max(cutoff, at),
+  previous.prunedBeforeAt);
   return {
     state: {
-      version: 3,
+      version: 4,
       initialized: true,
-      completions: pruneCompletionCursors(completions),
-      pending: prunePendingNotifications(pending),
+      completions: retainedCompletions,
+      pending: retainedPending,
       deferred: prunePendingNotifications(deferred),
+      pendingContent: Object.fromEntries(Object.entries(pendingContent)
+        .filter(([id, content]) => retainedPending[id] === content.completedAt)),
+      remindersEnabled: enabled,
+      mutedUntilAt,
+      prunedBeforeAt,
       updatedAt: Math.round(now)
     },
-    notifications,
-    pending: prunePendingNotifications(pending)
+    notifications: notifications.filter(content =>
+      retainedPending[content.threadID] === content.completedAt),
+    pending: retainedPending
   };
 }
 
@@ -175,7 +217,6 @@ function isCodexFrontmost(bundleIdentifier, additionalBundleIdentifiers = []) {
   if (typeof bundleIdentifier !== "string" || !bundleIdentifier.trim()) return null;
   return new Set([
     "com.openai.codex",
-    "com.openai.chat",
     ...additionalBundleIdentifiers.filter((value) => typeof value === "string")
   ]).has(bundleIdentifier.trim());
 }

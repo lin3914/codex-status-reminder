@@ -31,7 +31,7 @@ let foregroundMode = "unknown";
 const now = Date.now(), completedAt = now - 20_000;
 const context = {
   ...completion, ...security, BrowserWindow, ipcMain, screen, path,
-  __dirname: base, Date, console, quitting: false,
+  __dirname: base, Date, console, setTimeout, clearTimeout, quitting: false,
   process: { resourcesPath: resources },
   childProcess: require("child_process"),
   resolveCodexExecutable: () => null, appBundleForExecutable: () => null,
@@ -39,6 +39,9 @@ const context = {
   COMPLETION_NOTIFICATION_STATE_PATH: path.join(isolated, "completion-state.json"),
   completionNotificationState: completion.normalizeCompletionNotificationState({ initialized: true }),
   lastCompletionNotificationStateJSON: "", lastCompletionNotificationDecision: null,
+  lastCompletionNotificationPersistenceError: null, lastCompletionBannerFailure: null,
+  lastCompletionBannerContentJSON: null, completionBannerRecoveryTimer: null,
+  completionBannerFailureTimes: [],
   completionBannerWindow: null, completionBannerExpanded: false,
   completionBannerEntries: new Map(), completionSystemNotifications: new Map(),
   settings: { notifyOnUnreadCompletion: true },
@@ -65,10 +68,16 @@ const task = {
   state: "unread", completedAt, locale: "zh-CN"
 };
 async function waitFor(expression) {
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 160; i++) {
     const win = context.completionBannerWindow;
-    if (win && !win.isDestroyed() && !win.webContents.isLoading()
-        && await win.webContents.executeJavaScript(expression)) return win;
+    if (win && !win.isDestroyed() && !win.webContents.isLoading() && !win.webContents.isCrashed()) {
+      try {
+        if (await win.webContents.executeJavaScript(expression)) return win;
+      } catch (error) {
+        if (context.completionBannerWindow === win && !win.isDestroyed()
+            && !win.webContents.isDestroyed() && !win.webContents.isCrashed()) throw error;
+      }
+    }
     await delay(40);
   }
   throw new Error("Packaged notification did not render: " + expression);
@@ -121,6 +130,29 @@ app.whenReady().then(async () => {
     fs.writeFileSync(path.join(reportDir, "notification-delivery.png"), image.toPNG());
     checked("production completion handler displays a real packaged persistent banner after recovery");
 
+    const crashed = win;
+    const rendererGone = new Promise(resolve => crashed.webContents.once("render-process-gone", resolve));
+    crashed.webContents.forcefullyCrashRenderer();
+    // Do not issue renderer JavaScript while its process is being killed: an
+    // evaluation started in that interval may never settle in Electron.
+    await rendererGone;
+    // The main process must stay alive and recover only its notification
+    // renderer. This process and every window in it are test-owned.
+    win = await waitFor("document.querySelector('.completion-notification-title')?.textContent === '完成提醒链路验证'");
+    assert.notEqual(win, crashed);
+    assert(crashed.isDestroyed());
+    assert.equal(context.completionNotificationState.pending[task.id], completedAt);
+    assert.equal(context.lastCompletionBannerFailure?.reason, "renderer-gone");
+    checked("real Electron renderer crash recreates the banner without an app restart or losing pending content");
+
+    context.closeAllCompletionBanners();
+    context.completionNotificationState = completion.normalizeCompletionNotificationState(
+      JSON.parse(fs.readFileSync(context.COMPLETION_NOTIFICATION_STATE_PATH, 'utf8')));
+    await context.handleCompletionNotifications([], null);
+    win = await waitFor("document.querySelector('.completion-notification-title')?.textContent === '完成提醒链路验证'");
+    assert(win.isVisible());
+    checked("serialized pending reminder restores real content when both task index and read receipts are unavailable");
+
     await context.handleCompletionNotifications([task], new Set([task.id]));
     assert.equal(context.completionBannerEntries.size, 1);
     await context.handleCompletionNotifications([{ ...task, state: "completed" }], null);
@@ -136,15 +168,29 @@ app.whenReady().then(async () => {
     assert.equal(context.completionBannerWindow, null);
     checked("real close-button IPC dismisses only the reminder and prevents resending the same completion");
 
-    const tasks = [1, 2, 3].map(i => ({ ...task, id: `synthetic-group-${i}`,
+    const tasks = [1, 2, 3, 4, 5, 6, 7, 8].map(i => ({ ...task, id: `synthetic-group-${i}`,
       title: `模拟完成任务 ${i}`, completedAt: Date.now() + i }));
     await context.handleCompletionNotifications(tasks, new Set(tasks.map(t => t.id)));
-    win = await waitFor("document.querySelector('.completion-notification-more')?.textContent === '+2'");
+    win = await waitFor("document.querySelector('.completion-notification-more')?.textContent === '+7'");
     await win.webContents.executeJavaScript("document.querySelector('.completion-notification-more').click()");
-    win = await waitFor("document.querySelectorAll('.completion-notification-row').length === 3");
+    win = await waitFor("document.querySelectorAll('.completion-notification-row').length === 8");
     assert.equal(await win.webContents.executeJavaScript(
-      "document.querySelector('.completion-notification-row-title').textContent"), "模拟完成任务 3");
-    checked("three real completion events use the existing expandable group and newest-first ordering");
+      "document.querySelector('.completion-notification-row-title').textContent"), "模拟完成任务 8");
+    await win.webContents.executeJavaScript("document.querySelector('.completion-notification-list').scrollTop = 160");
+    const scrollBefore = await win.webContents.executeJavaScript("document.querySelector('.completion-notification-list').scrollTop");
+    assert(scrollBefore > 0);
+    await context.handleCompletionNotifications(tasks, new Set(tasks.map(t => t.id)));
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('.completion-notification-list').scrollTop"), scrollBefore);
+    fs.writeFileSync(path.join(reportDir, "notification-eight-expanded.png"), (await win.capturePage()).toPNG());
+    checked("eight real completions group newest-first, remain scrollable and preserve scroll position on unchanged refresh");
+    await win.webContents.executeJavaScript("document.querySelector('.completion-notification-row').click()");
+    await delay(100);
+    assert.equal(opened.at(-1), "codex://threads/synthetic-group-8");
+    assert.equal(context.completionNotificationState.pending["synthetic-group-8"], undefined);
+    assert.equal(context.completionBannerEntries.size, 7);
+    await context.handleCompletionNotifications(tasks, new Set(tasks.map(t => t.id)));
+    assert.equal(context.completionBannerEntries.size, 7);
+    checked("real task-body IPC opens exactly that conversation and removes only its banner, without resending it");
     await context.handleCompletionNotifications(tasks.map(t => ({...t, state: "completed"})), new Set());
     assert.equal(context.completionBannerWindow, null);
     checked("successful Codex read receipts close all viewed completion banners");

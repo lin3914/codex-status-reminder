@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing reviewed version tag, for example v1.9.13
+        description: Existing reviewed version tag, for example v1.9.14
         required: true
         type: string
       architectures:

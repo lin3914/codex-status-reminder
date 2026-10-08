@@ -21,7 +21,7 @@
 发行前运行 `npm run check:electron-support`，从 Electron 官方发布索引检查支持线和本大版本的最新补丁；网络失败或补丁过期时阻止二进制发行。候选将基线 43.4.1 更新到 2026-10-08 查询的同线最新补丁 43.7.9，不跨大版本。不能靠“major ≥ 43”的静态判断永久宣称受支持，也不能把 npm audit 没发现漏洞当作 Chromium 已没有漏洞的证明。
 
 1. 完成 [实机验收清单](QA_CHECKLIST.md)，批准 binaryPublicationApproved。
-2. 为完成回归的提交创建版本 tag。当前源码版本为 1.9.13（64），修复后台完成提醒丢失；递增 patch 与 build，避免同版本对应不同产物。
+2. 为完成回归的提交创建版本 tag。当前源码版本为 1.9.14（65），补齐完成提醒的独立验证与故障恢复；递增 patch 与 build，避免同版本对应不同产物。
 3. 手动运行 “Prepare signed macOS draft”，选择已审阅 tag。默认只生成 arm64 包；Intel 完成真实设备测试后才选择双架构。
 4. 工作流运行测试、许可／源码检查，导入证书，构建、签名、公证、staple、Gatekeeper 校验，生成 SHA256SUMS。
 5. 仅创建 Draft + Prerelease。不自动公开、不覆盖旧资产。

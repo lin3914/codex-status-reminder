@@ -59,6 +59,19 @@ assert.deepEqual(
 );
 
 const hash = (parts) => createHash("sha256").update(JSON.stringify(parts)).digest("hex");
+assert.deepEqual(extractUnreadState({ "electron-persisted-atom-state": {
+  "unread-thread-ids-by-host-v2": { local: [] },
+  "unread-thread-ids-by-host-v1": { local: ["stale-old-format"] },
+  "unread-thread-ids": ["stale-flat-format"]
+}}), { ids: [], available: true }, "an empty newer legacy format must not resurrect obsolete unread IDs");
+assert.deepEqual(extractUnreadState({ "electron-persisted-atom-state": {
+  "unread-thread-ids-by-host-v2": { local: ["current-only"] },
+  "unread-thread-ids-by-host-v1": { local: ["stale-old-format"] }
+}}), { ids: ["current-only"], available: true });
+assert.equal(extractUnreadState({ "electron-persisted-atom-state": {
+  "unread-thread-ids-by-host-v2": null,
+  "unread-thread-ids-by-host-v1": { local: ["stale-old-format"] }
+}}).available, false, "an invalid present format is unavailable, not a fallback to stale IDs");
 const syntheticAuth = (account, user) => ({
   auth_mode: "chatgpt",
   tokens: { access_token: `test.${Buffer.from(JSON.stringify({

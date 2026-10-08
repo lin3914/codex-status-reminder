@@ -137,6 +137,16 @@ app.whenReady().then(async () => {
     assert(messages.some(x => x.window === "settings" && x.type === "update"));
     assert(messages.some(x => x.window === "notification" && x.type === "close"));
     checks.push("task click, settings save, notification expand and close IPC");
+    const unknown = {...panelState, unreadCount: "–", renderRevision: 2,
+      tasks: [{id: "demo-syncing", title: "等待未读回执", progress: "未读状态暂未同步",
+        stateLabel: "待同步", stateClass: "unknown"}]};
+    windows.panel.webContents.send("companion:snapshot", unknown);
+    await waitFor("panel", "document.querySelectorAll('.status-task-row').length === 1 && document.body.textContent.includes('待同步')");
+    assert.equal(await windows.panel.webContents.executeJavaScript("document.querySelector('.status-task-phase').textContent"), "待同步");
+    assert.equal(await windows.panel.webContents.executeJavaScript("document.querySelector('.status-task-metric-value').textContent"), "–");
+    checks.push("unavailable unread receipts render as syncing and unknown count, never processed or a false zero");
+    windows.panel.webContents.send("companion:snapshot", {...panelState, renderRevision: 3});
+    await waitFor("panel", "document.querySelectorAll('.status-task-row').length === 3");
     await windows.settings.webContents.executeJavaScript("document.getElementById('showDesktopWidget').click()");
     await waitFor("settings", "document.getElementById('showDesktopWidget').checked === true");
     // Zero is a valid threshold, not an absent value. Verify display and math

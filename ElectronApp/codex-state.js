@@ -57,14 +57,16 @@ function extractUnreadState(root, {
   }
   const state = root?.["electron-persisted-atom-state"];
   if (!state || typeof state !== "object") return unavailable;
-  const candidates = [
-    state["unread-thread-ids-by-host-v1"]?.local,
-    state["unread-thread-ids-by-host-v2"]?.local,
-    state["unread-thread-ids-v1"],
-    state["unread-thread-ids"]
-  ];
-  const values = candidates.filter(Array.isArray).flat();
-  return { ids: cleanUnreadIds(values), available: candidates.some(Array.isArray) };
+  // A newer legacy key can coexist with an obsolete migration copy. Choose
+  // the newest present format, including its empty set; never union them.
+  for (const key of ["unread-thread-ids-by-host-v2", "unread-thread-ids-by-host-v1",
+    "unread-thread-ids-v1", "unread-thread-ids"]) {
+    if (!Object.hasOwn(state, key)) continue;
+    const values = key.includes("by-host") ? state[key]?.local : state[key];
+    return Array.isArray(values)
+      ? { ids: cleanUnreadIds(values), available: true } : unavailable;
+  }
+  return unavailable;
 }
 
 function extractUnreadThreadIds(root, options) {

@@ -50,15 +50,16 @@ struct CodexUnreadStateReader {
         guard let atomState = root[Self.atomStateKey] as? [String: Any] else {
             return CodexUnreadState(threadIDs: [], isAvailable: false)
         }
-        let candidates: [[Any]?] = [
-            (atomState[Self.unreadStateKey] as? [String: Any])?["local"] as? [Any],
-            (atomState["unread-thread-ids-by-host-v2"] as? [String: Any])?["local"] as? [Any],
-            atomState["unread-thread-ids-v1"] as? [Any],
-            atomState["unread-thread-ids"] as? [Any]
-        ]
-        let sources = candidates.compactMap { $0 }
-        guard !sources.isEmpty else { return CodexUnreadState(threadIDs: [], isAvailable: false) }
-        return Self.result(sources.flatMap { $0 })
+        for key in ["unread-thread-ids-by-host-v2", Self.unreadStateKey,
+                    "unread-thread-ids-v1", "unread-thread-ids"] {
+            guard atomState.keys.contains(key) else { continue }
+            let values = key.contains("by-host")
+                ? (atomState[key] as? [String: Any])?["local"] as? [Any]
+                : atomState[key] as? [Any]
+            guard let values else { return CodexUnreadState(threadIDs: [], isAvailable: false) }
+            return Self.result(values)
+        }
+        return CodexUnreadState(threadIDs: [], isAvailable: false)
     }
 
     private static func result(_ values: [Any]) -> CodexUnreadState {

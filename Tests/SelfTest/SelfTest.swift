@@ -63,6 +63,18 @@ private struct SelfTest {
         try require(result.isAvailable, "未读字段存在时应标记为可用")
         try require(result.threadIDs == Set(["thread-a", "thread-b"]), "只能读取 local 未读集合")
 
+        try JSONSerialization.data(withJSONObject: ["electron-persisted-atom-state": [
+            "unread-thread-ids-by-host-v2": ["local": [String]()],
+            "unread-thread-ids-by-host-v1": ["local": ["stale"]]
+        ]]).write(to: url)
+        try require(CodexUnreadStateReader(stateURL: url).read() ==
+                    CodexUnreadState(threadIDs: [], isAvailable: true), "新旧兼容键并存时，最新空集合不得复活旧未读")
+        try JSONSerialization.data(withJSONObject: ["electron-persisted-atom-state": [
+            "unread-thread-ids-by-host-v2": NSNull(),
+            "unread-thread-ids-by-host-v1": ["local": ["stale"]]
+        ]]).write(to: url)
+        try require(!CodexUnreadStateReader(stateURL: url).read().isAvailable, "最新兼容键损坏不得读取旧迁移副本")
+
         let authURL = directory.appendingPathComponent("auth.json")
         func auth(_ account: String, _ user: String) throws -> [String: Any] {
             let claims = ["https://api.openai.com/auth": [
