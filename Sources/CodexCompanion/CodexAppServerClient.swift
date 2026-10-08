@@ -93,7 +93,8 @@ actor CodexAppServerClient {
         process.standardOutput = stdout
         process.standardError = stderr
         process.terminationHandler = { [weak self] _ in
-            Task { await self?.handleProcessExit() }
+            guard let client = self else { return }
+            Task { await client.handleProcessExit() }
         }
 
         try process.run()
@@ -103,12 +104,13 @@ actor CodexAppServerClient {
         let outputHandle = stdout.fileHandleForReading
         self.outputHandle = outputHandle
         outputHandle.readabilityHandler = { [weak self] handle in
+            guard let client = self else { return }
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
-                Task { await self?.handleProcessExit() }
+                Task { await client.handleProcessExit() }
             } else {
-                Task { await self?.ingest(data: data) }
+                Task { await client.ingest(data: data) }
             }
         }
         let errorHandle = stderr.fileHandleForReading

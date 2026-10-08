@@ -40,7 +40,7 @@
     },
     {
       "name": "@xmldom/xmldom",
-      "version": "0.9.11",
+      "version": "0.9.12",
       "license": "MIT",
       "role": "build-only dependency"
     },
@@ -58,7 +58,7 @@
     },
     {
       "name": "brace-expansion",
-      "version": "5.0.9",
+      "version": "5.0.12",
       "license": "MIT",
       "role": "build-only dependency"
     },
@@ -172,7 +172,7 @@
     },
     {
       "name": "undici",
-      "version": "7.29.0",
+      "version": "7.30.0",
       "license": "MIT",
       "role": "build-only dependency"
     },

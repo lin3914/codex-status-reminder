@@ -54,6 +54,8 @@ try {
   assert.match(release, /--draft --prerelease/);
   assert.doesNotMatch(release, /--clobber|pull_request_target/);
   assert.match(release, /CODEX_COMPANION_KEYCHAIN: \$\{\{ runner\.temp \}\}\/codex-release\.keychain-db/);
+  assert.doesNotMatch(release.slice(0, release.indexOf("    steps:")), /runner\.temp/,
+    "runner context is not available in job-level env; only use it in steps");
   for (const script of ["sign-macos-app.mjs", "notarize-macos-app.mjs"]) {
     assert.match(fs.readFileSync(path.join(root, "scripts", script), "utf8"),
       /keychain: process\.env\.CODEX_COMPANION_KEYCHAIN/,
