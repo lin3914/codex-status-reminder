@@ -85,7 +85,7 @@ function formatTrayQuotaLine({
 }
 
 function formatTrayTaskLine({ locale, unreadCount, runningCount }) {
-  const unread = Math.max(0, Number(unreadCount) || 0);
+  const unread = unreadCount === null ? "–" : Math.max(0, Number(unreadCount) || 0);
   const running = Math.max(0, Number(runningCount) || 0);
   return locale === "en"
     ? `Unread: ${unread}; Running: ${running};`

@@ -75,4 +75,8 @@ assert.equal(
   "a viewed aborted turn must be treated as 已处理 rather than 进行中"
 );
 
+assert.equal(classifyTask({isUnread: null, hasOpenTurn: false, runtimeStatus: "idle"}), "unknown",
+  "a failed unread read must not be reported as a viewed/processed task");
+assert.equal(classifyTask({isUnread: null, hasOpenTurn: true, runtimeStatus: "paused"}), "unknown");
+assert.equal(classifyTask({isUnread: null, hasOpenTurn: false, runtimeStatus: "active"}), "running");
 process.stdout.write("PASS task-classification\n");

@@ -53,6 +53,7 @@ function classifyTask({ isUnread, hasOpenTurn, runtimeStatus }) {
   // looks open. Codex's explicit terminal state wins; unread then decides
   // whether the stopped task belongs in "待查看" or "已处理".
   if (!isTerminalRuntimeStatus(runtimeStatus) && hasOpenTurn) return "running";
+  if (isUnread === null) return "unknown";
   if (isUnread) return "unread";
   return "completed";
 }

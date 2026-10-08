@@ -4,7 +4,7 @@ A third-party macOS companion for Codex. See weekly quota, reset time and recent
 
 This app is independent of OpenAI and is not an official OpenAI product. End users do not need to install Electron or Node.js separately.
 
-The project is licensed under [Apache-2.0](LICENSE). The maintainer has confirmed the rights to publish the code and icons. Source version: 1.9.13 (64). No Developer ID-signed, notarized public download has been released; local ad-hoc development builds are not an end-user release.
+The project is licensed under [Apache-2.0](LICENSE). The maintainer has confirmed the rights to publish the code and icons. Source version: 1.9.14 (65). No Developer ID-signed, notarized public download has been released; local ad-hoc development builds are not an end-user release.
 
 Known release blocker: if the task index loads but unread-state reading fails, stopped tasks can be incorrectly shown as viewed. This must be corrected and validated before an end-user binary release; see [compatibility](docs/COMPATIBILITY.md).
 

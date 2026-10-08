@@ -167,7 +167,8 @@ const disabledResult = planCompletionNotifications({
 assert.equal(disabledResult.notifications.length, 0, "关闭通知后不得推送");
 
 assert.equal(isCodexFrontmost("com.openai.codex"), true);
-assert.equal(isCodexFrontmost("com.openai.chat"), true);
+assert.equal(isCodexFrontmost("com.openai.chat"), false);
+assert.equal(isCodexFrontmost("com.openai.chat", ["com.openai.chat"]), true);
 assert.equal(isCodexFrontmost("com.apple.finder"), false);
 assert.equal(isCodexFrontmost(""), null);
 assert.deepEqual(notificationCopy({}, "en"), {
@@ -276,7 +277,7 @@ const normalizedDeferred = normalizeCompletionNotificationState({
   completions: { done: 20 }, deferred: { done: 20, newer: 30, bad: "x" }
 });
 assert.deepEqual(normalizedDeferred.deferred, { newer: 30 });
-assert.equal(normalizedDeferred.version, 3);
+assert.equal(normalizedDeferred.version, 4);
 const boundedCandidates = planCompletionNotifications({
   tasks: Array.from({length: 150}, (_, i) => ({...newTask, id: `deferred-${i}`})),
   state: baseline.state, now: completedAt + 20_000,

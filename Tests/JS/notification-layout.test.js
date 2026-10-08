@@ -114,7 +114,7 @@ assert.match(
 );
 assert.match(
   completion,
-  /pending:\s*prunePendingNotifications\(pending\)/,
+  /const retainedPending = prunePendingNotifications\(pending\)/,
   "完成通知必须保留持久待查看队列"
 );
 assert.doesNotMatch(

@@ -141,7 +141,7 @@ const MENU_BAR_PLACEMENT_GRACE_MS = 4_000;
 const BACKGROUND_RECOVERY_STABILITY_MS = 30_000;
 const ACTIVE_DISCOVERY_WINDOW_MS = 5 * 60_000;
 const TRANSCRIPT_RUNNING_MAX_AGE_MS = 24 * 60 * 60_000;
-const APP_VERSION = "1.9.13";
+const APP_VERSION = "1.9.14";
 const APP_SESSION_STARTED_AT = Date.now();
 // Do not reuse the pre-release bundle identities below. macOS 26 Control
 // Center persists per-status-item state by bundle identity, including state
@@ -191,6 +191,11 @@ const completionBannerEntries = new Map();
 const completionSystemNotifications = new Map();
 let completionBannerWindow = null;
 let completionBannerExpanded = false;
+let completionBannerRecoveryTimer = null;
+let completionBannerFailureTimes = [];
+let lastCompletionBannerContentJSON = null;
+let lastCompletionBannerFailure = null;
+let lastCompletionNotificationPersistenceError = null;
 let menuBarTray = null;
 let backgroundRecoveryStableTimer = null;
 let menuBarTrayImage = null;
@@ -281,6 +286,7 @@ let snapshot = {
   },
   tasks: [],
   unreadCount: 0,
+  unreadAvailable: false,
   runningCount: 0
 };
 
@@ -1249,7 +1255,7 @@ function menuBarStatePayload(copy) {
     }),
     taskLine: formatTrayTaskLine({
       locale: effectiveLocale(),
-      unreadCount: snapshot.unreadCount,
+      unreadCount: snapshot.unreadAvailable === false ? null : snapshot.unreadCount,
       runningCount: snapshot.runningCount
     }),
     labels: {
@@ -1945,11 +1951,14 @@ function updateSettings(patch) {
     syncMacLoginItem();
     syncBackgroundRecovery();
   }
-  if (notificationsChanged && !settings.notifyOnUnreadCompletion) {
+  if (notificationsChanged) {
     persistCompletionNotificationState(planCompletionNotifications({
-      tasks: [], state: completionNotificationState, enabled: false
+      tasks: [], state: {
+        ...completionNotificationState, remindersEnabled: previous.notifyOnUnreadCompletion
+      },
+      enabled: settings.notifyOnUnreadCompletion
     }).state);
-    closeAllCompletionBanners();
+    if (!settings.notifyOnUnreadCompletion) closeAllCompletionBanners();
   }
   if (localeChanged) {
     const appName = copyFor().appName;
@@ -2008,11 +2017,21 @@ function discoveredCodexBundleIdentifiers() {
 }
 
 function persistCompletionNotificationState(next) {
-  const serialized = JSON.stringify(next);
-  if (serialized === lastCompletionNotificationStateJSON) return;
-  writeJSON(COMPLETION_NOTIFICATION_STATE_PATH, next);
+  const serialized = JSON.stringify({ ...next, updatedAt: 0 });
+  const durable = lastCompletionNotificationStateJSON
+    ? JSON.stringify({ ...JSON.parse(lastCompletionNotificationStateJSON), updatedAt: 0 }) : null;
+  if (serialized === durable && !lastCompletionNotificationPersistenceError) return;
+  // A full or temporarily unavailable application-data volume must not stop
+  // delivery. Retain runtime state and retry persistence on the next refresh.
   completionNotificationState = next;
-  lastCompletionNotificationStateJSON = serialized;
+  try {
+    writeJSON(COMPLETION_NOTIFICATION_STATE_PATH, next);
+    lastCompletionNotificationStateJSON = JSON.stringify(next);
+    lastCompletionNotificationPersistenceError = null;
+  } catch {
+    lastCompletionNotificationPersistenceError = "write-failed";
+    console.error("Codex Companion completion state write failed; retaining runtime state");
+  }
 }
 
 function openTask(threadID) {
@@ -2036,6 +2055,39 @@ const COMPLETION_BANNER_EXPANDED_HEADER_HEIGHT = 56;
 const COMPLETION_BANNER_EXPANDED_ROW_HEIGHT = 64;
 const COMPLETION_BANNER_EXPANDED_ROW_GAP = 6;
 const COMPLETION_BANNER_MAX_VISIBLE_ROWS = 3;
+const COMPLETION_BANNER_LOAD_TIMEOUT_MS = 10_000;
+const COMPLETION_BANNER_RECOVERY_WINDOW_MS = 60_000;
+const COMPLETION_BANNER_RECOVERY_LIMIT = 2;
+
+function clearCompletionBannerRecoveryTimer() {
+  if (completionBannerRecoveryTimer) clearTimeout(completionBannerRecoveryTimer);
+  completionBannerRecoveryTimer = null;
+}
+
+function failCompletionBannerWindow(win, reason) {
+  if (completionBannerWindow !== win) return;
+  clearTimeout(win?.companionNotificationLoadTimer);
+  completionBannerWindow = null;
+  lastCompletionBannerContentJSON = null;
+  lastCompletionBannerFailure = { reason, at: Date.now() };
+  if (win && !win.isDestroyed()) win.destroy();
+  if (quitting || !settings.notifyOnUnreadCompletion || completionBannerEntries.size === 0) return;
+  completionBannerFailureTimes = completionBannerFailureTimes.filter(at =>
+    Date.now() - at < COMPLETION_BANNER_RECOVERY_WINDOW_MS);
+  completionBannerFailureTimes.push(Date.now());
+  if (completionBannerFailureTimes.length > COMPLETION_BANNER_RECOVERY_LIMIT) {
+    for (const entry of completionBannerEntries.values()) showSystemNotificationFallback(entry.content);
+    return;
+  }
+  clearCompletionBannerRecoveryTimer();
+  completionBannerRecoveryTimer = setTimeout(() => {
+    completionBannerRecoveryTimer = null;
+    if (!quitting && settings.notifyOnUnreadCompletion && completionBannerEntries.size) {
+      ensureCompletionBannerWindow();
+    }
+  }, 300);
+  completionBannerRecoveryTimer.unref?.();
+}
 
 function completionEntryTimestamp(entry) {
   const completedAt = Number(entry?.content?.completedAt);
@@ -2090,11 +2142,14 @@ function removePendingCompletion(threadID) {
     return;
   }
   const pending = { ...completionNotificationState.pending };
+  const pendingContent = { ...completionNotificationState.pendingContent };
   delete pending[threadID];
+  delete pendingContent[threadID];
   persistCompletionNotificationState({
     ...completionNotificationState,
-    version: 3,
+    version: 4,
     pending,
+    pendingContent,
     updatedAt: Date.now()
   });
 }
@@ -2123,6 +2178,7 @@ function positionCompletionBanners() {
 
 function sendCompletionBannerContent() {
   if (!completionBannerWindow || completionBannerWindow.isDestroyed()) return;
+  if (!completionBannerWindow.companionNotificationReady) return;
   const items = sortCompletionEntries(completionBannerEntries.values())
     .map((entry) => ({
       threadID: entry.threadID,
@@ -2134,15 +2190,16 @@ function sendCompletionBannerContent() {
       appName: copyFor().appName
     }));
   const layout = completionBannerLayout(items.length);
+  const payload = {
+    items, expanded: layout.isExpanded, collapsedLayers: layout.collapsedLayers,
+    expandedContentHeight: layout.contentHeight, locale: effectiveLocale()
+  };
+  const serialized = JSON.stringify(payload);
+  if (serialized === lastCompletionBannerContentJSON) return;
+  lastCompletionBannerContentJSON = serialized;
   completionBannerWindow.webContents.send(
     "companion:notification-content",
-    {
-      items,
-      expanded: layout.isExpanded,
-      collapsedLayers: layout.collapsedLayers,
-      expandedContentHeight: layout.contentHeight,
-      locale: effectiveLocale()
-    }
+    payload
   );
 }
 
@@ -2153,15 +2210,17 @@ function closeCompletionBanner(threadID, { clearPending = false } = {}) {
   const systemNotification = completionSystemNotifications.get(threadID);
   if (systemNotification) {
     completionSystemNotifications.delete(threadID);
-    try {
-      systemNotification.close();
-    } catch {
-    }
+    closeSystemCompletionNotification(systemNotification);
   }
   if (completionBannerEntries.size === 0) {
+    clearCompletionBannerRecoveryTimer();
+    lastCompletionBannerContentJSON = null;
     const window = completionBannerWindow;
     completionBannerWindow = null;
-    if (window && !window.isDestroyed()) window.destroy();
+    if (window && !window.isDestroyed()) {
+      clearTimeout(window.companionNotificationLoadTimer);
+      window.destroy();
+    }
   } else {
     sendCompletionBannerContent();
     positionCompletionBanners();
@@ -2174,45 +2233,64 @@ function dismissCompletionBanner(threadID) {
 }
 
 function closeAllCompletionBanners() {
+  clearCompletionBannerRecoveryTimer();
+  lastCompletionBannerContentJSON = null;
   completionBannerEntries.clear();
   completionBannerExpanded = false;
   const window = completionBannerWindow;
   completionBannerWindow = null;
-  if (window && !window.isDestroyed()) window.destroy();
+  if (window && !window.isDestroyed()) {
+    clearTimeout(window.companionNotificationLoadTimer);
+    window.destroy();
+  }
   for (const notification of completionSystemNotifications.values()) {
-    try {
-      notification.close();
-    } catch {
-    }
+    closeSystemCompletionNotification(notification);
   }
   completionSystemNotifications.clear();
 }
 
+function closeSystemCompletionNotification(notification) {
+  if (!notification) return;
+  notification.companionProgrammaticClose = true;
+  try { notification.close(); } catch {}
+}
+
 function showSystemNotificationFallback(content) {
-  if (!Notification.isSupported()) return;
+  const current = completionSystemNotifications.get(content.threadID);
+  if (current?.companionCompletedAt === content.completedAt) {
+    if (!current.companionDeliveryFailed) return true;
+    if (Date.now() - current.companionRequestedAt < COMPLETION_BANNER_RECOVERY_WINDOW_MS) return false;
+  }
+  if (!Notification.isSupported()) return false;
   try {
     const previous = completionSystemNotifications.get(content.threadID);
     if (previous) {
-      try {
-        previous.close();
-      } catch {
-      }
+      completionSystemNotifications.delete(content.threadID);
+      closeSystemCompletionNotification(previous);
     }
     const notification = new Notification({
       title: content.title,
       body: content.body.slice(0, 320),
-      silent: false,
-      timeoutType: "never"
+      silent: false
     });
+    notification.companionCompletedAt = content.completedAt;
+    notification.companionRequestedAt = Date.now();
     completionSystemNotifications.set(content.threadID, notification);
     notification.on("click", () => openTask(content.threadID));
     notification.on("close", () => {
       if (completionSystemNotifications.get(content.threadID) === notification) {
         completionSystemNotifications.delete(content.threadID);
+        if (!notification.companionProgrammaticClose) dismissCompletionBanner(content.threadID);
       }
     });
+    notification.on("failed", () => {
+      notification.companionDeliveryFailed = true;
+      lastCompletionBannerFailure = { reason: "system-notification-failed", at: Date.now() };
+    });
     notification.show();
+    return true;
   } catch {
+    return false;
   }
 }
 
@@ -2220,6 +2298,10 @@ function ensureCompletionBannerWindow() {
   if (completionBannerWindow && !completionBannerWindow.isDestroyed()) {
     return completionBannerWindow;
   }
+  if (quitting || !settings.notifyOnUnreadCompletion || completionBannerRecoveryTimer) return null;
+  completionBannerFailureTimes = completionBannerFailureTimes.filter(at =>
+    Date.now() - at < COMPLETION_BANNER_RECOVERY_WINDOW_MS);
+  if (completionBannerFailureTimes.length > COMPLETION_BANNER_RECOVERY_LIMIT) return null;
   try {
     const win = new BrowserWindow({
       width: COMPLETION_BANNER_WIDTH,
@@ -2235,10 +2317,11 @@ function ensureCompletionBannerWindow() {
       type: "panel",
       webPreferences: {
         preload: path.join(__dirname, "preload-notification.js"),
-      sandbox: true,
+        sandbox: true,
         contextIsolation: true
       }
     });
+    completionBannerWindow = win;
     // Electron's transparent panel can otherwise retain a native shadow or
     // stale backing color around the four rounded corners on some macOS
     // releases. Explicitly clear both after creation as well as in CSS.
@@ -2248,7 +2331,8 @@ function ensureCompletionBannerWindow() {
     if (typeof win.setHasShadow === "function") {
       win.setHasShadow(false);
     }
-    completionBannerWindow = win;
+    win.companionNotificationReady = false;
+    lastCompletionBannerContentJSON = null;
     win.setAlwaysOnTop(true, "pop-up-menu");
     win.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true,
@@ -2260,39 +2344,50 @@ function ensureCompletionBannerWindow() {
     void win.loadFile(path.join(__dirname, "renderer", "notification.html"))
       .catch(() => {
         console.error("Codex Companion completion banner renderer failed to load");
-        if (completionBannerWindow === win) {
-          completionBannerWindow = null;
-          if (!win.isDestroyed()) win.destroy();
-          for (const entry of completionBannerEntries.values()) {
-            showSystemNotificationFallback(entry.content);
-          }
-        }
+        failCompletionBannerWindow(win, "load-failed");
       });
     win.webContents.on("did-finish-load", () => {
+      if (completionBannerWindow !== win || win.isDestroyed()) return;
+      clearTimeout(win.companionNotificationLoadTimer);
+      win.companionNotificationReady = true;
       sendCompletionBannerContent();
       positionCompletionBanners();
-      if (!win.isDestroyed()) win.showInactive();
+      if (completionBannerEntries.size && !quitting && settings.notifyOnUnreadCompletion) {
+        win.showInactive();
+      }
+      for (const threadID of completionBannerEntries.keys()) {
+        const fallback = completionSystemNotifications.get(threadID);
+        completionSystemNotifications.delete(threadID);
+        closeSystemCompletionNotification(fallback);
+      }
     });
-    win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+    win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (isMainFrame === false || errorCode === -3) return;
       console.error(
         "Codex Companion completion banner did-fail-load",
         errorCode,
         errorDescription,
         validatedURL
       );
+      failCompletionBannerWindow(win, "load-failed");
     });
     win.webContents.on("render-process-gone", (_event, details) => {
       console.error("Codex Companion completion banner renderer gone", details);
+      failCompletionBannerWindow(win, "renderer-gone");
     });
-  win.on("closed", () => {
+    win.companionNotificationLoadTimer = setTimeout(() => {
+      failCompletionBannerWindow(win, "load-timeout");
+    }, COMPLETION_BANNER_LOAD_TIMEOUT_MS);
+    win.companionNotificationLoadTimer.unref?.();
+    win.on("closed", () => {
       if (completionBannerWindow === win) {
-        completionBannerWindow = null;
-        completionBannerExpanded = false;
+        failCompletionBannerWindow(win, "window-closed");
       }
     });
     return win;
   } catch (error) {
     console.error("Codex Companion completion banner window failed", error);
+    failCompletionBannerWindow(completionBannerWindow, "window-failed");
     return null;
   }
 }
@@ -2308,12 +2403,12 @@ function showCompletionNotification(content) {
   });
   const win = ensureCompletionBannerWindow();
   if (!win) {
-    showSystemNotificationFallback(content);
-    return Notification.isSupported() ? "system-notification" : "unavailable";
+    if (completionBannerRecoveryTimer) return "recovering";
+    return showSystemNotificationFallback(content) ? "system-notification" : "unavailable";
   }
   sendCompletionBannerContent();
   positionCompletionBanners();
-  win.showInactive();
+  if (win.companionNotificationReady) win.showInactive();
   return "in-app-banner";
 }
 
@@ -2330,11 +2425,14 @@ function syncCompletionBanners(tasks, plannedState) {
   );
   for (const [threadID, completedAt] of Object.entries(pending)) {
     const task = taskByID.get(threadID);
-    if (!task || task.state !== "unread") continue;
+    const cached = plannedState?.pendingContent?.[threadID];
+    const current = task?.state === "unread" && Number(task.completedAt) === completedAt
+      ? notificationCopy(task, task.locale) : null;
+    if (!current && !cached) continue;
     showCompletionNotification({
       threadID,
       completedAt,
-      ...notificationCopy(task, task.locale)
+      ...(current || cached)
     });
   }
   positionCompletionBanners();
@@ -2346,6 +2444,8 @@ async function handleCompletionNotifications(tasks, unreadThreadIDs = null) {
       Number(task.completedAt) > Number(
         completionNotificationState.completions?.[task.id] || 0
       )
+      && (Number(task.completedAt) > Number(completionNotificationState.prunedBeforeAt || 0)
+        || Number(completionNotificationState.deferred?.[task.id]) === Number(task.completedAt))
     ));
   const hasPendingNotifications = (
     Object.keys(completionNotificationState.pending || {}).length > 0
@@ -2388,7 +2488,7 @@ async function handleCompletionNotifications(tasks, unreadThreadIDs = null) {
 function taskRank(state) {
   if (state === "unread") return 0;
   if (state === "running") return 1;
-  return 2;
+  return state === "unknown" ? 2 : 3;
 }
 
 function retainTasks(tasks) {
@@ -2399,7 +2499,7 @@ function retainTasks(tasks) {
     return a.id.localeCompare(b.id);
   });
   const priority = sorted.filter(
-    (task) => task.state === "unread" || task.state === "running"
+    (task) => task.state === "unread" || task.state === "running" || task.state === "unknown"
   );
   if (priority.length >= 10) return priority;
   const completed = sorted.filter((task) => task.state === "completed");
@@ -2592,6 +2692,8 @@ function resourceDiagnostics() {
       enabled: settings.notifyOnUnreadCompletion,
       pendingCount: Object.keys(completionNotificationState.pending || {}).length,
       deferredCount: Object.keys(completionNotificationState.deferred || {}).length,
+      persistenceError: lastCompletionNotificationPersistenceError,
+      lastBannerFailure: lastCompletionBannerFailure,
       visible: Boolean(completionBannerWindow && !completionBannerWindow.isDestroyed()
         && completionBannerWindow.isVisible()),
       lastDecision: lastCompletionNotificationDecision
@@ -2690,7 +2792,7 @@ async function refreshTasks() {
         });
       }
       const state = classifyTask({
-        isUnread: unread.has(row.id),
+        isUnread: unreadState.available ? unread.has(row.id) : null,
         hasOpenTurn: transcriptRunning,
         runtimeStatus
       });
@@ -2709,7 +2811,8 @@ async function refreshTasks() {
       ) || "Codex 会话";
       const progress = cleanDisplayText(
         observation.latestProgress
-          || (state === "running" ? "任务已开始，等待最新进展" : "任务已完成"),
+          || (state === "running" ? "任务已开始，等待最新进展"
+            : state === "unknown" ? "未读状态暂未同步" : "任务已完成"),
         row.cwd || ""
       );
       tasks.push({
@@ -2730,6 +2833,7 @@ async function refreshTasks() {
     const retained = retainTasks(tasks);
     const nextTaskState = {
       tasks: retained,
+      unreadAvailable: unreadState.available === true,
       unreadCount: tasks.filter((task) => task.state === "unread").length,
       runningCount: tasks.filter((task) => task.state === "running").length
     };
@@ -2737,6 +2841,7 @@ async function refreshTasks() {
     if (serialized !== lastTaskSnapshotJSON) {
       lastTaskSnapshotJSON = serialized;
       snapshot.tasks = retained;
+      snapshot.unreadAvailable = nextTaskState.unreadAvailable;
       snapshot.unreadCount = nextTaskState.unreadCount;
       snapshot.runningCount = nextTaskState.runningCount;
       broadcastSnapshot();
@@ -2938,8 +3043,8 @@ function dotSnapshot() {
     runningCount: snapshot.runningCount,
     locale: effectiveLocale(),
     accessibilityLabel: effectiveLocale() === "en"
-      ? `${snapshot.unreadCount} unread completed tasks, ${snapshot.runningCount} running tasks`
-      : `${snapshot.unreadCount} 个已完成任务待查看，${snapshot.runningCount} 个任务进行中`,
+      ? `${snapshot.unreadAvailable === false ? "Unread status syncing" : `${snapshot.unreadCount} unread completed tasks`}, ${snapshot.runningCount} running tasks`
+      : `${snapshot.unreadAvailable === false ? "未读状态待同步" : `${snapshot.unreadCount} 个已完成任务待查看`}，${snapshot.runningCount} 个任务进行中`,
     appName: copy.appName
   };
 }
@@ -2960,7 +3065,7 @@ function panelSnapshot() {
       ? `${Math.round(quota.timeRemainingPercent)}%`
       : "–",
     resetValue: quota.available ? formatCountdown(quota.resetAt) : "待同步",
-    unreadCount: snapshot.unreadCount,
+    unreadCount: snapshot.unreadAvailable === false ? "–" : snapshot.unreadCount,
     runningCount: snapshot.runningCount,
     copy: {
       quotaRemaining: copy.quotaRemaining,
@@ -2978,7 +3083,8 @@ function panelSnapshot() {
       progress: task.progress,
       stateLabel: task.state === "unread"
         ? copy.unread
-        : task.state === "running" ? copy.running : copy.completed,
+        : task.state === "running" ? copy.running
+          : task.state === "unknown" ? copy.syncing : copy.completed,
       stateClass: task.state
     }))
   };

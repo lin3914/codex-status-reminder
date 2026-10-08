@@ -330,8 +330,8 @@ NODE
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.lindaozhi.codexstatusreminder" "$info_plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile icon.icns" "$info_plist" 2>/dev/null \
   || /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string icon.icns" "$info_plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.9.13" "$info_plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 64" "$info_plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.9.14" "$info_plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 65" "$info_plist"
 if ! /usr/libexec/PlistBuddy \
   -c "Set :ElectronAsarIntegrity:Resources/app.asar:hash $asar_hash" \
   "$info_plist" 2>/dev/null; then
