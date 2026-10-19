@@ -26,7 +26,7 @@
     "@electron/asar": "4.2.1",
     "@electron/get": "5.1.0",
     "@electron/notarize": "3.1.1",
-    "@electron/osx-sign": "2.7.0",
+    "@electron/osx-sign": "2.7.1",
     "electron": "43.7.9"
   },
   "allowScripts": {
