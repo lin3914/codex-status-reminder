@@ -107,7 +107,7 @@
           <label class="settings-row" for="notifyOnUnreadCompletion">
             <span class="settings-copy">
               <strong data-copy="notification">显示任务完成提醒</strong>
-              <small data-copy="notificationDescription">Codex 不在前台时常驻显示；关闭提醒不会把任务标记为已读</small>
+              <small data-copy="notificationDescription">Codex 在后台时提醒；打开 Codex 会撤下全部提醒，不改变未读状态</small>
             </span>
             <input id="notifyOnUnreadCompletion" type="checkbox" role="switch">
           </label>
@@ -223,7 +223,7 @@
           loginDescription: "在菜单栏静默启动，不打开设置窗口",
           notifications: "任务完成提醒",
           notification: "显示任务完成提醒",
-          notificationDescription: "Codex 不在前台时常驻显示；关闭提醒不会把任务标记为已读",
+          notificationDescription: "Codex 在后台时提醒；打开 Codex 会撤下全部提醒，不改变未读状态",
           notificationDelivery: "提醒方式：应用内常驻卡片，不需要系统通知权限。",
           quotaHealth: "额度健康度",
           quotaExplanationTitle: "额度比时间进度领先得越多，越需要提醒",
@@ -283,7 +283,7 @@
           loginDescription: "Start quietly in the menu bar without opening Settings",
           notifications: "Task completion alerts",
           notification: "Show task completion alerts",
-          notificationDescription: "Stay visible while Codex is not frontmost; closing an alert does not mark the task as read",
+          notificationDescription: "Notify while Codex is in the background; opening Codex dismisses all alerts without changing unread status",
           notificationDelivery: "Delivery: a persistent in-app card. No system notification permission is required.",
           quotaHealth: "Quota health",
           quotaExplanationTitle: "The farther quota runs ahead of time, the more attention it needs",

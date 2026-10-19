@@ -35,9 +35,11 @@ function fixture() {
     isDestroyed() { return this.destroyed; }
     destroy() { this.destroyed = true; this.visible = false; this.emit("closed"); }
     isVisible() { return this.visible; }
-    showInactive() { this.visible = true; }
+    showInactive() { this.visible = true; this.raiseCount = (this.raiseCount || 0) + 1; }
     setBounds(value) { this.bounds = value; }
-    setBackgroundColor() {} setHasShadow() {} setAlwaysOnTop() {} setVisibleOnAllWorkspaces() {}
+    setBackgroundColor() {} setHasShadow() {}
+    setAlwaysOnTop(flag, level) { this.top = {flag, level}; }
+    setVisibleOnAllWorkspaces() {}
     loadFile() {
       if (injection.load === "failed") return Promise.reject(new Error("synthetic load failure"));
       if (injection.load === "stalled") return new Promise(() => {});
@@ -66,6 +68,8 @@ function fixture() {
     lastCompletionBannerContentJSON: null, completionBannerRecoveryTimer: null,
     completionBannerFailureTimes: [], completionBannerWindow: null, completionBannerExpanded: false,
     completionBannerEntries: new Map(), completionSystemNotifications: new Map(),
+    completionForegroundMonitor: null, completionForegroundIdentifier: null,
+    completionForegroundRevision: 0, scheduleTaskRefresh() {},
     settings: { notifyOnUnreadCompletion: true }, effectiveLocale: () => "en",
     copyFor: () => ({ appName: "CodeX Status Reminder" }),
     readFrontmostBundleIdentifier: async () => "com.apple.finder",
@@ -97,13 +101,81 @@ function fixture() {
 }
 
 const cases = [
+  ["persistent reminders use floating rather than menu or system-overlay priority", async () => {
+    const f = fixture(); await f.deliver();
+    assert.deepEqual(f.context.completionBannerWindow.top, {flag: true, level: "floating"});
+  }],
+  ["Codex activation immediately clears all cards and never changes unread receipts", async () => {
+    const f = fixture(); const second = {...task, id: "synthetic-second"};
+    const unread = new Set([task.id, second.id]);
+    await f.deliver([task, second], unread);
+    assert.equal(f.context.completionBannerEntries.size, 2);
+    f.context.handleCompletionForegroundChange("com.openai.codex");
+    assert.equal(f.context.completionBannerWindow, null);
+    assert.equal(f.context.completionBannerEntries.size, 0);
+    assert.equal(Object.keys(f.context.completionNotificationState.pending).length, 0);
+    assert.deepEqual([...unread], [task.id, second.id]);
+    f.context.handleCompletionForegroundChange("com.apple.finder");
+    await f.deliver([task, second], unread);
+    assert.equal(f.context.completionBannerWindow, null);
+  }],
+  ["Codex activation cancels native fallbacks and renderer-recovery timers", async () => {
+    const f = fixture(); f.injection.constructorFailures = 100;
+    await f.deliver(); await f.advance(700);
+    assert.equal(f.native.length, 1);
+    f.context.handleCompletionForegroundChange("com.openai.codex");
+    assert(f.native[0].closed);
+    assert.equal(f.context.completionSystemNotifications.size, 0);
+    await f.advance(60_001); await f.deliver();
+    assert.equal(f.native.length, 1);
+    assert.equal(f.context.completionBannerWindow, null);
+  }],
+  ["late task data from the whole foreground interval is not backfilled after deactivation", async () => {
+    const f = fixture();
+    f.context.handleCompletionForegroundChange("com.openai.codex");
+    await f.advance(60_000);
+    f.context.handleCompletionForegroundChange("com.apple.finder");
+    await f.deliver([{...task, id: "late-foreground", completedAt: epoch + 30_000}]);
+    assert.equal(f.context.completionBannerWindow, null);
+    await f.advance(5);
+    await f.deliver([{...task, id: "new-background", completedAt: epoch + 62_004}]);
+    assert(f.context.completionBannerWindow.isVisible());
+  }],
+  ["activation during an unfinished load cannot show or recover a late card", async () => {
+    const f = fixture(); f.injection.load = "stalled"; await f.deliver();
+    const win = f.windows[0];
+    f.context.handleCompletionForegroundChange("com.openai.codex");
+    win.webContents.emit("did-finish-load");
+    await f.advance(15_000);
+    assert(win.isDestroyed()); assert.equal(win.isVisible(), false);
+    assert.equal(f.context.completionBannerWindow, null); assert.equal(f.windows.length, 1);
+  }],
+  ["activation invalidates an in-flight background lookup even after switching away again", async () => {
+    const f = fixture(); let resolve;
+    f.context.readFrontmostBundleIdentifier = () => new Promise(done => {resolve = done;});
+    const running = f.deliver(); await f.settle();
+    f.context.handleCompletionForegroundChange("com.openai.codex");
+    f.context.handleCompletionForegroundChange("com.apple.finder");
+    resolve("com.apple.finder"); await running;
+    assert.equal(f.windows.length, 0);
+    assert.equal(Object.keys(f.context.completionNotificationState.pending).length, 0);
+  }],
   ["refreshes preserve the DOM and do not rewrite unchanged persistent state", async () => {
     const f = fixture(); await f.deliver();
     const win = f.context.completionBannerWindow;
     assert(win.isVisible()); assert(win.companionNotificationReady);
-    const writes = f.stored.length, sends = win.messages.length;
+    const writes = f.stored.length, sends = win.messages.length, raises = win.raiseCount;
     for (let n = 0; n < 20; n++) { await f.advance(500); await f.deliver(); }
     assert.equal(f.stored.length, writes); assert.equal(win.messages.length, sends);
+    assert.equal(win.raiseCount, raises, "refreshing cannot cover a newer peer notification");
+  }],
+  ["an unknown foreground hides overlays but preserves their durable content", async () => {
+    const f = fixture(); await f.deliver();
+    f.context.handleCompletionForegroundChange(null);
+    assert.equal(f.context.completionBannerWindow, null);
+    assert.equal(f.context.completionNotificationState.pending[task.id], task.completedAt);
+    f.context.handleCompletionForegroundChange("com.apple.finder"); await f.settle();
+    assert(f.context.completionBannerWindow.isVisible());
   }],
   ["a renderer crash restores the same unviewed reminder, without restarting the app", async () => {
     const f = fixture(); await f.deliver(); const old = f.context.completionBannerWindow;

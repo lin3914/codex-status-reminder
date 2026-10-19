@@ -1,5 +1,17 @@
 # 发行流程
 
+## 当前发布：1.9.15（66）公开试用包
+
+维护者已明确批准发布本轮验证通过的原始 Apple Silicon DMG 和 ZIP。发布内容是 **ad-hoc 签名、未公证试用包**，不是下文的 Developer ID 正式发行流程；不运行签名工作流，不把 `binaryPublicationApproved` 改为 true 来暗示正式发行门禁已通过。
+
+1. 提交并审阅 1.9.15 源码、说明和版本清单，完成分支保护要求的 CI 检查。
+2. 将通过检查的版本合入 main，以对应提交创建 `v1.9.15` 标签；标签与已公开资产不覆盖或重用。
+3. 创建 Draft Release，逐个上传[版本清单](releases/v1.9.15.json)指定的原始安装包、SHA256SUMS 和清单，不重新构建或修改包内文件。
+4. 核对资产大小和 SHA-256；公开后通过不带登录凭据的下载链接回下载复核，确认与本地已安装验证的文件完全一致。
+5. 将它设为 GitHub 最新发布，同时在中英文 README 和使用说明列出直接下载、首次打开限制与保留配置的更新方法。
+
+试用发布不改变正式包的签名、公证、跨设备验收要求。后续如需更换二进制内容，应递增版本和构建号、重新验证，不能覆盖本版文件。原始镜像内说明保留构建时的发布状态，当前 GitHub 发布状态以 Release 页面为准。
+
 ## 第一道门：权利与源码
 
 确认代码、图标和继承资源可再分发后，选择许可，加入完整 LICENSE，同步 package.json／package-lock.json 的许可字段与归属，更新 publication-policy.json 的源码批准项及审阅状态。运行 `npm run check:publication` 必须通过。
@@ -10,7 +22,7 @@
 
 ## 第二道门：普通用户下载
 
-当前候选有一项必须先修复的状态问题：未读状态单独读取失败时，停止任务可能误显示为已处理。请先完成未知／最后有效状态处理、失败恢复回归及真实 Codex 验收，再批准二进制发行；签名和公证不会修复该逻辑。参见[兼容性](COMPATIBILITY.md)。
+未读单独读取失败时误显示为已处理的历史问题，已由 1.9.14 改为“待同步”／未知数量，并纳入失败恢复回归。正式二进制发行前仍需完成目标系统和真实 Codex 验收；固定样本通过、签名与公证都不能替代该验收。参见[兼容性](COMPATIBILITY.md)。
 
 需要 Apple Developer 账户、Developer ID Application 证书、团队身份和公证凭据。本机 ad-hoc 签名不能替代 Developer ID。
 
@@ -21,7 +33,7 @@
 发行前运行 `npm run check:electron-support`，从 Electron 官方发布索引检查支持线和本大版本的最新补丁；网络失败或补丁过期时阻止二进制发行。候选将基线 43.4.1 更新到 2026-10-08 查询的同线最新补丁 43.7.9，不跨大版本。不能靠“major ≥ 43”的静态判断永久宣称受支持，也不能把 npm audit 没发现漏洞当作 Chromium 已没有漏洞的证明。
 
 1. 完成 [实机验收清单](QA_CHECKLIST.md)，批准 binaryPublicationApproved。
-2. 为完成回归的提交创建版本 tag。当前源码版本为 1.9.14（65），补齐完成提醒的独立验证与故障恢复；递增 patch 与 build，避免同版本对应不同产物。
+2. 为完成回归的提交创建版本 tag。当前源码版本为 1.9.15（66），增加打开 Codex 撤回全部提醒、标准浮动层级与不重复抬高窗口，并保留完成提醒的故障恢复；递增 patch 与 build，避免同版本对应不同产物。
 3. 手动运行 “Prepare signed macOS draft”，选择已审阅 tag。默认只生成 arm64 包；Intel 完成真实设备测试后才选择双架构。
 4. 工作流运行测试、许可／源码检查，导入证书，构建、签名、公证、staple、Gatekeeper 校验，生成 SHA256SUMS。
 5. 仅创建 Draft + Prerelease。不自动公开、不覆盖旧资产。
@@ -47,7 +59,7 @@ npm run package:macos
 CODEX_COMPANION_RELEASE_MODE=development CODEX_COMPANION_RELEASE_ARCHS=arm64 npm run package:macos
 ```
 
-开发 ZIP 不上传正式下载区。应用自带的许可位于 Contents/Resources/licenses。安装普通用户采用拖拽方式，不要求 Terminal、管理员脚本或关闭安全机制。
+开发 ZIP 不冒充签名公证正式包。维护者明确批准公开试用时，按上面的独立试用流程记录版本、哈希和限制；正式发行仍执行签名工作流。应用自带的许可位于 Contents/Resources/licenses。普通用户采用拖拽安装，不要求 Terminal、管理员脚本或关闭安全机制。
 
 ## 不在首发范围
 

@@ -32,6 +32,7 @@ const {
   isTopLevelThread
 } = require("./task-classification");
 const {
+  dismissAllCompletionNotifications,
   isCodexFrontmost,
   normalizeCompletionNotificationState,
   notificationCopy,
@@ -65,7 +66,7 @@ const {
   syncLoginItem
 } = require("./system-services");
 const { BackgroundRecovery } = require("./background-recovery");
-const { readFrontmostBundleIdentifier } = require("./frontmost-app");
+const { readFrontmostBundleIdentifier, createFrontmostApplicationMonitor } = require("./frontmost-app");
 const {
   createTrayIcon,
   formatTrayQuotaLine,
@@ -141,7 +142,7 @@ const MENU_BAR_PLACEMENT_GRACE_MS = 4_000;
 const BACKGROUND_RECOVERY_STABILITY_MS = 30_000;
 const ACTIVE_DISCOVERY_WINDOW_MS = 5 * 60_000;
 const TRANSCRIPT_RUNNING_MAX_AGE_MS = 24 * 60 * 60_000;
-const APP_VERSION = "1.9.14";
+const APP_VERSION = "1.9.15";
 const APP_SESSION_STARTED_AT = Date.now();
 // Do not reuse the pre-release bundle identities below. macOS 26 Control
 // Center persists per-status-item state by bundle identity, including state
@@ -189,6 +190,9 @@ let settingsWindow = null;
 // without paying one renderer process per persistent banner.
 const completionBannerEntries = new Map();
 const completionSystemNotifications = new Map();
+let completionForegroundMonitor = null;
+let completionForegroundIdentifier = null;
+let completionForegroundRevision = 0;
 let completionBannerWindow = null;
 let completionBannerExpanded = false;
 let completionBannerRecoveryTimer = null;
@@ -2004,13 +2008,20 @@ function discoveredCodexBundleIdentifiers() {
   const executable = resolveCodexExecutable();
   const bundlePath = appBundleForExecutable(executable);
   if (!bundlePath) return [];
+  if (discoveredCodexBundleIdentifiers.cachedPath === bundlePath) {
+    return discoveredCodexBundleIdentifiers.cachedIdentifiers;
+  }
   try {
     const identifier = childProcess.execFileSync(
       "/usr/libexec/PlistBuddy",
       ["-c", "Print :CFBundleIdentifier", path.join(bundlePath, "Contents", "Info.plist")],
       { encoding: "utf8", timeout: 2_000 }
     ).trim();
-    return identifier ? [identifier] : [];
+    const identifiers = identifier ? [identifier] : [];
+    // A process-stable identity must not spawn PlistBuddy on every app switch.
+    discoveredCodexBundleIdentifiers.cachedPath = bundlePath;
+    discoveredCodexBundleIdentifiers.cachedIdentifiers = identifiers;
+    return identifiers;
   } catch {
     return [];
   }
@@ -2031,6 +2042,35 @@ function persistCompletionNotificationState(next) {
   } catch {
     lastCompletionNotificationPersistenceError = "write-failed";
     console.error("Codex Companion completion state write failed; retaining runtime state");
+  }
+}
+
+function canPresentCompletionNotifications() {
+  return !quitting && settings.notifyOnUnreadCompletion
+    && isCodexFrontmost(completionForegroundIdentifier, discoveredCodexBundleIdentifiers()) === false;
+}
+
+function handleCompletionForegroundChange(identifier) {
+  const wasCodexFrontmost = isCodexFrontmost(completionForegroundIdentifier, discoveredCodexBundleIdentifiers());
+  completionForegroundIdentifier = identifier;
+  completionForegroundRevision += 1;
+  if (quitting) return;
+  const codexFrontmost = isCodexFrontmost(identifier, discoveredCodexBundleIdentifiers());
+  if (codexFrontmost === true || wasCodexFrontmost === true) {
+    // Also seal the end of the foreground interval. Otherwise a transcript
+    // discovered only after switching away could backfill foreground work.
+    persistCompletionNotificationState(dismissAllCompletionNotifications(completionNotificationState, Date.now()));
+    closeAllCompletionBanners();
+  }
+  if (codexFrontmost === null) {
+    // A lost observer is not evidence that Codex is in the background.
+    // Keep durable content, but never leave an unverified overlay visible.
+    closeAllCompletionBanners();
+  } else if (settings.notifyOnUnreadCompletion) {
+    syncCompletionBanners([], completionNotificationState);
+    if (Object.keys(completionNotificationState.deferred || {}).length) {
+      scheduleTaskRefresh(0, "foreground-restored");
+    }
   }
 }
 
@@ -2071,7 +2111,7 @@ function failCompletionBannerWindow(win, reason) {
   lastCompletionBannerContentJSON = null;
   lastCompletionBannerFailure = { reason, at: Date.now() };
   if (win && !win.isDestroyed()) win.destroy();
-  if (quitting || !settings.notifyOnUnreadCompletion || completionBannerEntries.size === 0) return;
+  if (!canPresentCompletionNotifications() || completionBannerEntries.size === 0) return;
   completionBannerFailureTimes = completionBannerFailureTimes.filter(at =>
     Date.now() - at < COMPLETION_BANNER_RECOVERY_WINDOW_MS);
   completionBannerFailureTimes.push(Date.now());
@@ -2082,7 +2122,7 @@ function failCompletionBannerWindow(win, reason) {
   clearCompletionBannerRecoveryTimer();
   completionBannerRecoveryTimer = setTimeout(() => {
     completionBannerRecoveryTimer = null;
-    if (!quitting && settings.notifyOnUnreadCompletion && completionBannerEntries.size) {
+    if (canPresentCompletionNotifications() && completionBannerEntries.size) {
       ensureCompletionBannerWindow();
     }
   }, 300);
@@ -2256,6 +2296,7 @@ function closeSystemCompletionNotification(notification) {
 }
 
 function showSystemNotificationFallback(content) {
+  if (!canPresentCompletionNotifications()) return false;
   const current = completionSystemNotifications.get(content.threadID);
   if (current?.companionCompletedAt === content.completedAt) {
     if (!current.companionDeliveryFailed) return true;
@@ -2298,7 +2339,7 @@ function ensureCompletionBannerWindow() {
   if (completionBannerWindow && !completionBannerWindow.isDestroyed()) {
     return completionBannerWindow;
   }
-  if (quitting || !settings.notifyOnUnreadCompletion || completionBannerRecoveryTimer) return null;
+  if (!canPresentCompletionNotifications() || completionBannerRecoveryTimer) return null;
   completionBannerFailureTimes = completionBannerFailureTimes.filter(at =>
     Date.now() - at < COMPLETION_BANNER_RECOVERY_WINDOW_MS);
   if (completionBannerFailureTimes.length > COMPLETION_BANNER_RECOVERY_LIMIT) return null;
@@ -2333,7 +2374,9 @@ function ensureCompletionBannerWindow() {
     }
     win.companionNotificationReady = false;
     lastCompletionBannerContentJSON = null;
-    win.setAlwaysOnTop(true, "pop-up-menu");
+    // Standard floating panels stay above ordinary documents, but below
+    // menus, Notification Center and system overlays. Never repeatedly raise.
+    win.setAlwaysOnTop(true, "floating");
     win.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true,
       // Keep completion banners as accessory-owned panels; do not let
@@ -2352,7 +2395,7 @@ function ensureCompletionBannerWindow() {
       win.companionNotificationReady = true;
       sendCompletionBannerContent();
       positionCompletionBanners();
-      if (completionBannerEntries.size && !quitting && settings.notifyOnUnreadCompletion) {
+      if (completionBannerEntries.size && canPresentCompletionNotifications()) {
         win.showInactive();
       }
       for (const threadID of completionBannerEntries.keys()) {
@@ -2394,6 +2437,7 @@ function ensureCompletionBannerWindow() {
 
 function showCompletionNotification(content) {
   if (!content?.threadID) return;
+  if (!canPresentCompletionNotifications()) return "deferred";
   const existing = completionBannerEntries.get(content.threadID);
   completionBannerEntries.set(content.threadID, {
     threadID: content.threadID,
@@ -2408,11 +2452,15 @@ function showCompletionNotification(content) {
   }
   sendCompletionBannerContent();
   positionCompletionBanners();
-  if (win.companionNotificationReady) win.showInactive();
+  if (win.companionNotificationReady && !win.isVisible()) win.showInactive();
   return "in-app-banner";
 }
 
 function syncCompletionBanners(tasks, plannedState) {
+  if (!canPresentCompletionNotifications()) {
+    closeAllCompletionBanners();
+    return;
+  }
   const pending = plannedState?.pending || {};
   for (const threadID of [...completionBannerEntries.keys()]) {
     const entry = completionBannerEntries.get(threadID);
@@ -2455,14 +2503,20 @@ async function handleCompletionNotifications(tasks, unreadThreadIDs = null) {
     completionNotificationState.deferred || {}
   ).length > 0;
   if (!hasCompletionChange && !hasPendingNotifications && !hasDeferredNotifications) return;
-  // Pending-banner cleanup only needs read receipts. Query the foreground
-  // asynchronously only when a completion still needs a delivery decision.
-  const frontmost = (hasCompletionChange || hasDeferredNotifications)
-    ? isCodexFrontmost(
-      await readFrontmostBundleIdentifier({ resourcesPath: process.resourcesPath }),
-      discoveredCodexBundleIdentifiers()
-    ) : null;
+  const foregroundRevision = completionForegroundRevision;
+  // The live NSWorkspace stream normally supplies a current value without
+  // a subprocess per refresh. A one-shot query is only an async fallback.
+  const identifier = completionForegroundMonitor?.getBundleIdentifier()
+    ?? await readFrontmostBundleIdentifier({ resourcesPath: process.resourcesPath });
   if (quitting) return;
+  if (foregroundRevision !== completionForegroundRevision) {
+    // A Codex activation may have acknowledged the whole queue while this
+    // query was pending. An old result must never overwrite that decision.
+    if (canPresentCompletionNotifications()) scheduleTaskRefresh(0, "foreground-race");
+    return;
+  }
+  completionForegroundIdentifier = identifier;
+  const frontmost = isCodexFrontmost(identifier, discoveredCodexBundleIdentifiers());
   const planned = planCompletionNotifications({
     tasks: tasks.map((task) => ({ ...task, locale: effectiveLocale() })),
     state: completionNotificationState,
@@ -2473,6 +2527,7 @@ async function handleCompletionNotifications(tasks, unreadThreadIDs = null) {
     unreadThreadIDs
   });
   persistCompletionNotificationState(planned.state);
+  if (frontmost === true) closeAllCompletionBanners();
   lastCompletionNotificationDecision = {
     checkedAt: Date.now(),
     foreground: frontmost === null ? "unknown" : frontmost ? "codex" : "other",
@@ -3336,6 +3391,11 @@ app.whenReady().then(() => {
   });
   syncMacLoginItem();
   syncBackgroundRecovery();
+  completionForegroundMonitor = createFrontmostApplicationMonitor({
+    resourcesPath: process.resourcesPath,
+    onChange: handleCompletionForegroundChange
+  });
+  completionForegroundMonitor.start();
   activateSelectedFolderAccess();
   restoreCachedQuota();
   startTaskSourceWatcher();
@@ -3418,6 +3478,9 @@ app.on("window-all-closed", (event) => {
 
 app.on("before-quit", () => {
   quitting = true;
+  completionForegroundRevision += 1;
+  completionForegroundMonitor?.stop();
+  completionForegroundMonitor = null;
   if (backgroundRecoveryStableTimer) {
     clearTimeout(backgroundRecoveryStableTimer);
     backgroundRecoveryStableTimer = null;

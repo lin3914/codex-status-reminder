@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "repository": "lin3914/codex-status-reminder",
+  "tag": "v1.9.15",
+  "version": "1.9.15",
+  "build": "66",
+  "channel": "public-trial",
+  "architecture": "arm64",
+  "electronVersion": "43.7.9",
+  "bundleIdentifier": "com.lindaozhi.codexstatusreminder",
+  "signing": { "type": "ad-hoc", "developerID": false, "notarized": false },
+  "validation": {
+    "localTestDate": "2026-10-19",
+    "timezone": "Asia/Shanghai",
+    "realDeviceOS": "macOS 27.0 (26A428)",
+    "realDeviceArchitecture": "arm64",
+    "packagedNotificationChecks": 17,
+    "packagedRendererGroups": 5,
+    "installedApplicationChecks": 9,
+    "codexActivation": "Actual Codex activation dismisses four preview reminders in the installed production app",
+    "overlayOrdering": "Separate native app overlays remain above the installed app after 62 seconds including a background refresh",
+    "configurationPreserved": true,
+    "codexTasksInjected": false,
+    "crossDeviceAcceptanceCompleted": false,
+    "allThirdPartyNotificationsTested": false
+  },
+  "assets": [
+    {
+      "name": "CodeX-Status-Reminder-1.9.15-66-trial-macos-arm64.dmg",
+      "size": 137278041,
+      "sha256": "118ad33827adfdfd8a4f983c9181c85b50b2ebf363901fa0715317fc48a3278e"
+    },
+    {
+      "name": "CodeX-Status-Reminder-1.9.15-66-trial-macos-arm64.zip",
+      "size": 123204320,
+      "sha256": "09cb1f274a0db57f72b5c24b98140e97c7f274b069a50cf5efac595d08c01c21"
+    }
+  ],
+  "applicationPayloadSha256": {
+    "Contents/Resources/app.asar": "e9ada5c601d9283db894d25f8d621c09a5a02802bf8b4f237c2136c9eb79c31a",
+    "Contents/Resources/Recovery/CodexCompanionRecovery": "4a65122ea60eabeb4ebea49b8a03840826218f98da77a880c9fab617d6e36522"
+  },
+  "sourceSha256": {
+    "ElectronApp/main.js": "194e81648953720a020b6f84139132a558259a1d7b490653dfd8e74bc7261794",
+    "ElectronApp/frontmost-app.js": "b45b0824a236230ed068a2504ab6abe9aa08b9ac3089b0cfb10fd0fa7082240d",
+    "ElectronApp/completion-notifications.js": "7fc7f1c4fc39314676e60c69c0b53714bd4040f749f850f1c68fe029e842cf0a",
+    "NativeRecovery/main.swift": "5c7b449b612267aa9e2ac3e41656f55f5847079543545c9669d88704bb5c649a",
+    "ElectronApp/package.json": "4f36b380c15b794548a416f8e95090861cae8c115600f09cafccacc77fba3106",
+    "Resources/Info.plist": "a049017a8abcb066a3fc5a7c7ba44086d23f67183e5a8047987996ae3cdfa5dd",
+    "Resources/LegacyV11/settings.html": "88af69d16f88cb348bd7ae78e256471cf1ab6b8beaf6f403a835e8fe6ef17c90",
+    "scripts/build-electron-app.sh": "a27e57a9420aa6c6ae8d41b8ade42c8f6de9969509d10b239588bf0496ddbfd0"
+  }
+}

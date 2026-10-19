@@ -6,6 +6,9 @@ const { app, BrowserWindow, ipcMain, screen } = require("electron");
 // Keep real UI/IPC assertions on CI even without an accelerated capture
 // surface. This does not change hardware acceleration in the installed app.
 app.disableHardwareAcceleration();
+let finished = false;
+app.on("window-all-closed", () => {});
+app.on("before-quit", event => { if (!finished) event.preventDefault(); });
 const assert = require("assert/strict");
 const fs = require("fs");
 const os = require("os");
@@ -22,8 +25,18 @@ app.setPath("userData", isolated);
 const reportDir = process.env.CODEX_COMPANION_SMOKE_REPORT || path.join(root, ".build/smoke");
 fs.mkdirSync(reportDir, { recursive: true });
 const main = fs.readFileSync(path.join(base, "main.js"), "utf8");
+const version = JSON.parse(fs.readFileSync(path.join(base, "package.json"), "utf8")).version;
+assert.equal(require("node:child_process").execFileSync("/usr/libexec/PlistBuddy",
+  ["-c", "Print :CFBundleShortVersionString", path.join(resources, "../Info.plist")], {encoding: "utf8"}).trim(), version);
+assert.equal(main.match(/const APP_VERSION = "([^"]+)"/)?.[1], version);
 const report = { checks: [], synthetic: true, codexDataAccess: false,
-  renderingMode: "isolated-test-software-capture" };
+  renderingMode: "isolated-test-software-capture", electron: process.versions.electron,
+  version, runID: process.env.CODEX_COMPANION_TEST_RUN_ID || "manual" };
+const watchdog = setTimeout(() => {
+  report.passed = false; report.error = "Incomplete asynchronous notification validation";
+  fs.writeFileSync(path.join(reportDir, "notification-delivery.json"), JSON.stringify(report, null, 2));
+  app.exit(1);
+}, 60_000);
 const checked = message => { report.checks.push(message); console.log("PASS " + message); };
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const opened = [];
@@ -44,6 +57,8 @@ const context = {
   completionBannerFailureTimes: [],
   completionBannerWindow: null, completionBannerExpanded: false,
   completionBannerEntries: new Map(), completionSystemNotifications: new Map(),
+  completionForegroundMonitor: null, completionForegroundIdentifier: null,
+  completionForegroundRevision: 0, scheduleTaskRefresh() {},
   settings: { notifyOnUnreadCompletion: true },
   effectiveLocale: () => "zh-CN", copyFor: () => ({ appName: "CodeX状态提醒" }),
   writeJSON: (file, value) => fs.writeFileSync(file, JSON.stringify(value)),
@@ -87,6 +102,7 @@ app.whenReady().then(async () => {
   let control;
   try {
     app.dock?.hide();
+    const originalForegroundIdentifier = await readFrontmostBundleIdentifier({ resourcesPath: resources });
     await context.handleCompletionNotifications([task], new Set([task.id]));
     assert.equal(context.completionBannerWindow, null);
     assert.equal(context.completionNotificationState.completions[task.id], undefined);
@@ -200,11 +216,14 @@ app.whenReady().then(async () => {
     assert.equal(context.completionBannerWindow, null);
     assert.equal(context.completionNotificationState.completions[foregroundTask.id], foregroundTask.completedAt);
     checked("Codex-foreground completion is consumed without an intrusive banner");
+    await require("./notification-system-checks.cjs")({root, base, resources, context, checked,
+      waitFor, report, originalForegroundIdentifier});
     report.passed = true;
   } catch (error) {
     report.passed = false; report.error = String(error.stack || error);
     console.error(error); process.exitCode = 1;
   } finally {
+    finished = true; clearTimeout(watchdog);
     context.closeAllCompletionBanners();
     control?.destroy();
     fs.writeFileSync(path.join(reportDir, "notification-delivery.json"), JSON.stringify(report, null, 2));
