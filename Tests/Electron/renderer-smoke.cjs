@@ -15,6 +15,7 @@ const candidateVersion = JSON.parse(fs.readFileSync(path.join(root, "package.jso
 const base = path.join(root, ".build/products/CodeX状态提醒.app/Contents/Resources/app.asar");
 const { rendererURL, protectRendererWindow, trustedRendererEvent } = require(path.join(base, "renderer-security.js"));
 const { normalizeSettings } = require(path.join(base, "settings-store.js"));
+assert.equal(JSON.parse(fs.readFileSync(path.join(base, "package.json"), "utf8")).version, candidateVersion);
 const isolatedData = fs.mkdtempSync(path.join(os.tmpdir(), "codex-renderer-smoke-"));
 app.setPath("userData", isolatedData);
 const windows = {};
@@ -181,14 +182,19 @@ app.whenReady().then(async () => {
     const legitimateErrors = unexpectedConsole.filter(x => !/Content Security Policy|script-src|Refused to execute inline script/i.test(x.message));
     assert.deepEqual(legitimateErrors, []);
     fs.writeFileSync(path.join(reportDir, "renderer-smoke.json"), JSON.stringify({
-      passed: true, checks, messages, electron: process.versions.electron,
+      passed: true, checks, messages, electron: process.versions.electron, version: candidateVersion,
+      runID: process.env.CODEX_COMPANION_TEST_RUN_ID || "manual",
       renderingMode: "isolated-test-software-capture",
       data: "synthetic only; no Codex data or installed app touched",
       screenshots: ["dot.png", "panel.png", "settings.png", "quota-settings.png", "notification-collapsed.png", "notification.png"]
     }, null, 2) + "\n");
     console.log("PASS Electron renderer smoke: " + checks.length + " groups; synthetic data only");
     for (const win of Object.values(windows)) if (!win.isDestroyed()) win.destroy();
-    app.quit();
+    // These isolated renderer assertions are complete. Do not wait on the
+    // pristine runtime's ordinary UI termination flow (which can hang on CI).
+    // This is not the installed application's quit/recovery implementation.
+    fs.rmSync(isolatedData, {recursive: true, force: true});
+    app.exit(0);
   } catch (error) {
     console.error(error.stack);
     for (const win of Object.values(windows)) if (!win.isDestroyed()) win.destroy();

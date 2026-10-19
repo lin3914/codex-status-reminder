@@ -123,6 +123,59 @@ private final class RecoveryController {
     }
 }
 
+// NSWorkspace activation notifications are public, read-only and event-driven.
+// This mode never runs recovery or writes app/system preferences. It exits
+// with its owning Electron process, even after an unexpected parent exit.
+private final class FrontmostApplicationObserver {
+    private var observations: [NSObjectProtocol] = []
+    private var parentSource: DispatchSourceProcess?
+    private var previous: String?
+    private var didPublish = false
+
+    func start(parentPID: pid_t) {
+        guard parentPID > 1, kill(parentPID, 0) == 0 else { exit(EXIT_FAILURE) }
+        signal(SIGPIPE, SIG_IGN)
+        let center = NSWorkspace.shared.notificationCenter
+        observations.append(center.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil, queue: .main
+        ) { [weak self] note in
+            let application = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            self?.publish(application?.bundleIdentifier)
+        })
+        for name in [NSWorkspace.didWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
+            observations.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.publish(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+            })
+        }
+        let source = DispatchSource.makeProcessSource(identifier: parentPID, eventMask: .exit, queue: .main)
+        source.setEventHandler { exit(EXIT_SUCCESS) }
+        parentSource = source
+        source.resume()
+        publish(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    }
+
+    private func publish(_ identifier: String?) {
+        guard !didPublish || identifier != previous else { return }
+        previous = identifier
+        didPublish = true
+        let value: [String: Any] = ["bundleIdentifier": identifier as Any? ?? NSNull()]
+        guard let data = try? JSONSerialization.data(withJSONObject: value) else { return }
+        do {
+            try FileHandle.standardOutput.write(contentsOf: data + Data([0x0A]))
+        } catch { exit(EXIT_SUCCESS) }
+    }
+}
+
+if CommandLine.arguments.count == 3,
+   CommandLine.arguments[1] == "--observe-frontmost-app",
+   let parentPID = Int32(CommandLine.arguments[2]) {
+    let observer = FrontmostApplicationObserver()
+    observer.start(parentPID: parentPID)
+    RunLoop.main.run()
+    exit(EXIT_SUCCESS)
+}
+
 // A separate, read-only command mode. Do not start recovery, activate this
 // process or touch application/system preferences when querying the foreground.
 if CommandLine.arguments.count == 2,

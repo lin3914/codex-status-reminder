@@ -1,6 +1,6 @@
 {
   "name": "codex-companion",
-  "version": "1.9.14",
+  "version": "1.9.15",
   "private": true,
   "license": "Apache-2.0",
   "main": "main.js"

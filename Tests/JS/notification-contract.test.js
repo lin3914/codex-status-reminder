@@ -16,6 +16,26 @@ function run(tasks, state = fresh, options = {}) {
     ...options });
 }
 const cases = [
+  ["opening Codex clears every pending and deferred reminder even without task data", () => {
+    const sent = run([task("a", start + 1_000), task("b", start + 2_000)]);
+    const waiting = run([task("c", start + 3_000)], sent.state,
+      { codexFrontmost: null, unreadThreadIDs: null });
+    const before = JSON.stringify(waiting.state);
+    const activated = run([], waiting.state,
+      { codexFrontmost: true, unreadThreadIDs: null, now: start + 70_000 });
+    assert.deepEqual(activated.state.pending, {});
+    assert.deepEqual(activated.state.pendingContent, {});
+    assert.deepEqual(activated.state.deferred, {});
+    assert.equal(JSON.stringify(waiting.state), before, "activation must not mutate its input");
+    const background = run([task("a", start + 1_000), task("b", start + 2_000),
+      task("c", start + 3_000), task("arrived-late", start + 65_000)], activated.state,
+      { now: start + 80_000 });
+    assert.equal(background.notifications.length, 0,
+      "dismissed reminders and late-arriving pre-activation completions must not return");
+    const next = run([task("a", start + 90_000)], background.state,
+      { now: start + 91_000 });
+    assert.equal(next.notifications.length, 1, "a genuinely later completion still notifies");
+  }],
   ["an independent ChatGPT app does not count as Codex foreground", () => {
     assert.equal(isCodexFrontmost("com.openai.chat"), false);
     assert.equal(isCodexFrontmost("com.openai.chat", ["com.openai.chat"]), true,

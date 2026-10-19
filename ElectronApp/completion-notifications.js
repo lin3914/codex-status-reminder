@@ -91,6 +91,25 @@ function notificationCopy(task, locale = "zh-CN") {
   };
 }
 
+// This is an acknowledgement of our reminders, not a Codex read receipt.
+// Keep a cutoff as well as cursors: task data may arrive after activation,
+// and old reminders must not reappear when Codex goes into the background.
+function dismissAllCompletionNotifications(state, now = Date.now()) {
+  const previous = normalizeCompletionNotificationState(state);
+  const completions = { ...previous.completions };
+  for (const [id, at] of [...Object.entries(previous.pending), ...Object.entries(previous.deferred)]) {
+    completions[id] = Math.max(completions[id] || 0, at);
+  }
+  const retained = pruneCompletionCursors(completions);
+  const prunedBeforeAt = Object.entries(completions).reduce((cutoff, [id, at]) =>
+    Object.hasOwn(retained, id) ? cutoff : Math.max(cutoff, at), previous.prunedBeforeAt);
+  return {
+    ...previous, completions: retained, pending: {}, deferred: {}, pendingContent: {},
+    mutedUntilAt: Math.max(previous.mutedUntilAt, finiteTimestamp(now)),
+    prunedBeforeAt, updatedAt: finiteTimestamp(now)
+  };
+}
+
 function planCompletionNotifications({
   tasks = [],
   state,
@@ -100,7 +119,9 @@ function planCompletionNotifications({
   codexFrontmost = null,
   unreadThreadIDs = null
 } = {}) {
-  const previous = normalizeCompletionNotificationState(state);
+  const previous = codexFrontmost === true
+    ? dismissAllCompletionNotifications(state, now)
+    : normalizeCompletionNotificationState(state);
   const initialPass = !previous.initialized;
   const completions = { ...previous.completions };
   const pending = { ...previous.pending };
@@ -118,7 +139,8 @@ function planCompletionNotifications({
       ? new Set(unreadThreadIDs.filter((id) => typeof id === "string"))
       : null;
 
-  // Only a successfully read Codex receipt can dismiss a persistent banner.
+  // Apart from explicit user/foreground dismissal, only a successfully read
+  // Codex receipt can dismiss a persistent banner.
   // A fallback task classification when the read set is unavailable is not
   // evidence that the user viewed the result.
   for (const threadID of Object.keys(pending)) {
@@ -234,6 +256,7 @@ module.exports = {
   MAX_COMPLETION_CURSORS,
   MAX_PENDING_NOTIFICATIONS,
   UNREAD_SETTLE_MS,
+  dismissAllCompletionNotifications,
   isCodexFrontmost,
   normalizeCompletionNotificationState,
   notificationCopy,

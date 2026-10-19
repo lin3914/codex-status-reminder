@@ -2,13 +2,13 @@
 
 <img src="Resources/AppIcon/AppIcon-1024.png" width="96" alt="CodeX状态提醒应用图标">
 
-在 Mac 菜单栏和桌面圆点里查看 Codex 的周额度、重置时间和最近任务。任务完成后，可以收到持续保留的提醒卡片；点击提醒会撤下该卡片并请求打开会话，直接在 Codex 查看后也会依已读同步撤下。手动关闭不改变会话未读状态。
+在 Mac 菜单栏和桌面圆点里查看 Codex 的周额度、重置时间和最近任务。Codex 在后台时，任务完成会显示提醒卡片；打开或切回 Codex 会撤下全部提醒。点击卡片可打开对应会话，手动关闭只移除这一条；这些操作不改写 Codex 的未读状态。
 
 这是独立的第三方应用，不是 OpenAI 官方产品，不隶属于 OpenAI，也不代表其背书。普通用户不需要另外安装 Electron、Node.js 或 Python。
 
-> 本项目采用 Apache-2.0，代码与图标的公开权利已由维护者确认。当前源码版本为 1.9.14（65），尚无面向普通用户的已签名、公证安装包；请勿把本地 ad-hoc 测试包当作正式发行版。
+> 当前下载版本为 **1.9.15（66），Apple Silicon 公开试用版**。安装包使用 ad-hoc 签名，尚未经过 Developer ID 签名和 Apple 公证，首次打开可能被 macOS 阻止。不要关闭系统安全保护。
 
-已知兼容缺陷：未读状态单独读取失败时，停止任务可能误显示为“已处理”。正式安装包发布前必须修复；详见[功能边界](docs/FUNCTIONAL_SPEC.md#已知界限)。
+未读信息暂不可用时，任务显示“待同步”、数量显示“–”，不把未知当作已读。不同真实 Codex 版本仍需分别验证；详见[功能边界](docs/FUNCTIONAL_SPEC.md#已知界限)。
 
 [English](README.en.md) · [使用说明](docs/USER_GUIDE.md) · [功能与边界](docs/FUNCTIONAL_SPEC.md) · [隐私](PRIVACY.md) · [开发与测试](CONTRIBUTING.md)
 
@@ -25,13 +25,15 @@
 
 ## 下载与安装
 
-正式发行后，安装包将放在本仓库的 Releases 页面。首个面向普通用户的包计划先提供 Apple Silicon 预发布版，Intel 包在独立验证后提供。
+[下载 1.9.15 DMG（推荐）](https://github.com/lin3914/codex-status-reminder/releases/download/v1.9.15/CodeX-Status-Reminder-1.9.15-66-trial-macos-arm64.dmg) · [下载 ZIP](https://github.com/lin3914/codex-status-reminder/releases/download/v1.9.15/CodeX-Status-Reminder-1.9.15-66-trial-macos-arm64.zip) · [版本说明与校验值](https://github.com/lin3914/codex-status-reminder/releases/tag/v1.9.15) · [最新发布](https://github.com/lin3914/codex-status-reminder/releases/latest)
+
+仅适用于 M 系列 Mac，暂不提供 Intel 安装包。这里上传的是完成本轮安装与通知验证的原始文件，不是另一份重新构建的应用。包与源码的对应关系见[版本清单](docs/releases/v1.9.15.json)。
 
 1. 先安装 Codex 并正常登录使用。
-2. 下载与你的处理器匹配、已签名和公证的 ZIP，解压后把 `CodeX状态提醒.app` 拖入“应用程序”。
+2. 下载 DMG，打开后把 `CodeX状态提醒.app` 拖入“应用程序”。更新时先退出旧版，再选择替换；不需要清空配置。ZIP 也可解压后安装。
 3. 在“应用程序”里打开应用。默认直接进入设置，自动连接 Codex；菜单栏入口始终保留，不显示运行中的 Dock 图标。
 
-不要关闭 Gatekeeper、执行去隔离命令，或对应用授予它不需要的系统权限。安装与故障处理见[使用说明](docs/USER_GUIDE.md)。
+如果提示无法验证开发者，只有确认下载来源和校验值可信后，才按 [Apple 官方说明](https://support.apple.com/zh-cn/102445)对本应用单独确认打开。公司受管 Mac 可能不允许此操作。不要关闭 Gatekeeper、执行去隔离命令，或对应用授予它不需要的系统权限；若提示恶意内容或文件损坏，请停止安装并反馈。详见[使用说明](docs/USER_GUIDE.md)。
 
 ## 系统与兼容性
 
@@ -55,6 +57,6 @@ npm run check:release
 
 ## 许可与反馈
 
-原创代码与可授权图标采用 [Apache-2.0](LICENSE)，保留 Electron / Chromium 等第三方许可。源码公开不代表正式安装包已经发布；二进制仍需单独完成签名、公证和实机验收。[第三方许可说明](THIRD_PARTY_NOTICES.md)。
+原创代码与可授权图标采用 [Apache-2.0](LICENSE)，代码与图标的公开权利已由维护者确认，保留 Electron / Chromium 等第三方许可。公开试用包不等于 Developer ID 公证正式包；后者仍需单独完成签名、公证和目标设备验收。[第三方许可说明](THIRD_PARTY_NOTICES.md)。
 
 报告普通问题时，请提供应用、macOS、Codex 版本和脱敏复现步骤；不要上传账号令牌、数据库或完整会话。安全漏洞按 [SECURITY.md](SECURITY.md) 私密报告。
