@@ -83,6 +83,18 @@
             <input id="showMenuBarQuota" type="checkbox" role="switch">
           </label>
           <div class="settings-divider"></div>
+          <label class="settings-select-row" for="tokenSpeedWindowSeconds">
+            <span class="settings-copy">
+              <strong data-copy="tokenSpeedWindow">实时速率统计范围</strong>
+              <small data-copy="tokenSpeedWindowDescription">用于整体和进行中会话；已结束会话显示本轮平均速率</small>
+            </span>
+            <select id="tokenSpeedWindowSeconds" aria-label="实时速率统计范围">
+              <option value="30" data-copy="tokenSpeed30">最近 30 秒</option>
+              <option value="60" data-copy="tokenSpeed60">最近 1 分钟</option>
+              <option value="300" data-copy="tokenSpeed300">最近 5 分钟</option>
+            </select>
+          </label>
+          <div class="settings-divider"></div>
           <label class="settings-row" for="showDesktopWidget">
             <span class="settings-copy">
               <strong data-copy="showDesktopWidget">显示桌面组件</strong>
@@ -219,6 +231,11 @@
           showDesktopWidgetDescription: "关闭后隐藏桌面圆点，菜单栏入口仍可用",
           showMenuBarQuota: "菜单栏显示剩余周额度",
           showMenuBarQuotaDescription: "开启时显示小星标和百分比；关闭时显示完整图标",
+          tokenSpeedWindow: "实时速率统计范围",
+          tokenSpeedWindowDescription: "用于整体和进行中会话；已结束会话显示本轮平均速率",
+          tokenSpeed30: "最近 30 秒",
+          tokenSpeed60: "最近 1 分钟",
+          tokenSpeed300: "最近 5 分钟",
           login: "登录 Mac 后自动启动",
           loginDescription: "在菜单栏静默启动，不打开设置窗口",
           notifications: "任务完成提醒",
@@ -279,6 +296,11 @@
           showDesktopWidgetDescription: "Hide the desktop dot while keeping the menu-bar entry available",
           showMenuBarQuota: "Show weekly quota in menu bar",
           showMenuBarQuotaDescription: "On: small star and percentage; off: full icon",
+          tokenSpeedWindow: "Live rate time range",
+          tokenSpeedWindowDescription: "For overall and active rates; ended sessions keep their turn average",
+          tokenSpeed30: "Last 30 seconds",
+          tokenSpeed60: "Last 1 minute",
+          tokenSpeed300: "Last 5 minutes",
           login: "Start after I sign in to this Mac",
           loginDescription: "Start quietly in the menu bar without opening Settings",
           notifications: "Task completion alerts",
@@ -491,6 +513,8 @@
         applyCopy();
         document.getElementById("app-version").textContent = next.version || "";
         document.getElementById("locale").value = next.locale;
+        document.getElementById("tokenSpeedWindowSeconds").value = String(next.tokenSpeedWindowSeconds || 30);
+        document.getElementById("tokenSpeedWindowSeconds").setAttribute("aria-label", language().tokenSpeedWindow);
         for (const key of settingKeys) {
           document.getElementById(key).checked = Boolean(next[key]);
         }
@@ -517,6 +541,9 @@
 
       document.getElementById("locale").addEventListener("change", (event) => {
         void update({ locale: event.target.value });
+      });
+      document.getElementById("tokenSpeedWindowSeconds").addEventListener("change", (event) => {
+        void update({ tokenSpeedWindowSeconds: Number(event.target.value) });
       });
       for (const key of settingKeys) {
         document.getElementById(key).addEventListener("change", (event) => {

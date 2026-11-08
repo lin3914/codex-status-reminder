@@ -41,6 +41,7 @@ const checked = message => { report.checks.push(message); console.log("PASS " + 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const opened = [];
 let foregroundMode = "unknown";
+let verifiedTestForeground = null;
 const now = Date.now(), completedAt = now - 20_000;
 const context = {
   ...completion, ...security, BrowserWindow, ipcMain, screen, path,
@@ -67,7 +68,8 @@ const context = {
   Notification: class { static isSupported() { throw new Error("In-app banner must not need system notification permission"); } },
   readFrontmostBundleIdentifier: options => foregroundMode === "unknown"
     ? Promise.resolve(null) : foregroundMode === "codex"
-      ? Promise.resolve("com.openai.codex") : readFrontmostBundleIdentifier(options)
+      ? Promise.resolve("com.openai.codex") : foregroundMode === "fixture"
+        ? Promise.resolve(verifiedTestForeground) : readFrontmostBundleIdentifier(options)
 };
 vm.createContext(context);
 const start = main.indexOf("function discoveredCodexBundleIdentifiers(");
@@ -135,7 +137,12 @@ app.whenReady().then(async () => {
       "bundled public API must identify the isolated test app, not unknown/Codex");
     report.foregroundQuery = { available: true, codexFrontmost: false, bundleIdentifier: actualIdentifier };
     checked("packaged native helper successfully reads NSWorkspace foreground without TCC permissions");
-    foregroundMode = "native";
+    // Freeze this verified background identity for renderer fault/IPC cases:
+    // crashing the renderer can return focus to the user's real Codex app.
+    // Native activation/dismissal is exercised independently below with two
+    // test-owned apps and the real NSWorkspace event stream.
+    verifiedTestForeground = actualIdentifier;
+    foregroundMode = "fixture";
     await context.handleCompletionNotifications([task], new Set([task.id]));
     let win = await waitFor("document.querySelector('.completion-notification-title')?.textContent === '完成提醒链路验证'");
     assert(win.isVisible());

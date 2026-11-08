@@ -6,18 +6,19 @@
 
 这是独立的第三方应用，不是 OpenAI 官方产品，不隶属于 OpenAI，也不代表其背书。普通用户不需要另外安装 Electron、Node.js 或 Python。
 
-> 当前下载版本为 **1.9.15（66），Apple Silicon 公开试用版**。安装包使用 ad-hoc 签名，尚未经过 Developer ID 签名和 Apple 公证，首次打开可能被 macOS 阻止。不要关闭系统安全保护。
+> 当前下载版本为 **1.9.16（68），Apple Silicon 公开试用版**。安装包使用 ad-hoc 签名，尚未经过 Developer ID 签名和 Apple 公证，首次打开可能被 macOS 阻止。不要关闭系统安全保护。
 
 未读信息暂不可用时，任务显示“待同步”、数量显示“–”，不把未知当作已读。不同真实 Codex 版本仍需分别验证；详见[功能边界](docs/FUNCTIONAL_SPEC.md#已知界限)。
 
 [English](README.en.md) · [使用说明](docs/USER_GUIDE.md) · [功能与边界](docs/FUNCTIONAL_SPEC.md) · [隐私](PRIVACY.md) · [开发与测试](CONTRIBUTING.md)
 
-<img src="Resources/Documentation/panel.png" width="420" alt="额度与任务面板：使用虚构任务和演示数据的真实界面">
+<img src="Resources/Documentation/token-speed-panel.png" width="420" alt="1.9.16 任务面板：速率位于状态标签左侧，保留最新进展；使用虚构任务和演示数据">
 
 ## 它能做什么
 
 - 看周额度：菜单栏可以直接显示剩余百分比；关闭数字时恢复完整图标。
 - 看任务：菜单栏左键展开完整任务卡片，右键打开配置菜单，悬停不弹窗。
+- 看速率：整体与会话统一按“标题 → Token 速率 → 状态标签”排列，保留三行最新进展。可选最近 30 秒、1 分钟或 5 分钟，默认 30 秒；已结束会话显示本轮平均值并退出实时统计。
 - 看提醒：已停止且未查看的任务标为绿色“待查看”；真正运行中的任务为浅黄色“进行中”；已查看且停止的任务为灰色“已处理”。
 - 看使用节奏：比较额度消耗和时间进度，默认超前不超过 12 小时为正常使用，超前达到 24 小时进入额度告警。提醒线可调整。
 - 自动连接：优先自动发现 Codex 的程序和数据目录，多次失败后才提供手动选择；不修改 Codex 数据。
@@ -25,9 +26,9 @@
 
 ## 下载与安装
 
-[下载 1.9.15 DMG（推荐）](https://github.com/lin3914/codex-status-reminder/releases/download/v1.9.15/CodeX-Status-Reminder-1.9.15-66-trial-macos-arm64.dmg) · [下载 ZIP](https://github.com/lin3914/codex-status-reminder/releases/download/v1.9.15/CodeX-Status-Reminder-1.9.15-66-trial-macos-arm64.zip) · [版本说明与校验值](https://github.com/lin3914/codex-status-reminder/releases/tag/v1.9.15) · [最新发布](https://github.com/lin3914/codex-status-reminder/releases/latest)
+[下载 1.9.16 DMG（推荐）](https://github.com/lin3914/codex-status-reminder/releases/download/v1.9.16/CodeX-Status-Reminder-1.9.16-68-trial-macos-arm64.dmg) · [下载 ZIP](https://github.com/lin3914/codex-status-reminder/releases/download/v1.9.16/CodeX-Status-Reminder-1.9.16-68-trial-macos-arm64.zip) · [版本说明与校验值](https://github.com/lin3914/codex-status-reminder/releases/tag/v1.9.16) · [最新发布](https://github.com/lin3914/codex-status-reminder/releases/latest)
 
-仅适用于 M 系列 Mac，暂不提供 Intel 安装包。这里上传的是完成本轮安装与通知验证的原始文件，不是另一份重新构建的应用。包与源码的对应关系见[版本清单](docs/releases/v1.9.15.json)。
+仅适用于 M 系列 Mac，暂不提供 Intel 安装包。ZIP 保留本轮已安装验证文件的原始字节，DMG 内应用与它逐文件一致；没有重新构建替换应用。包与源码的对应关系见[版本清单](docs/releases/v1.9.16.json)。
 
 1. 先安装 Codex 并正常登录使用。
 2. 下载 DMG，打开后把 `CodeX状态提醒.app` 拖入“应用程序”。更新时先退出旧版，再选择替换；不需要清空配置。ZIP 也可解压后安装。
@@ -37,7 +38,7 @@
 
 ## 系统与兼容性
 
-应用元数据保留现有 macOS 12.0 最低版本声明；这不等于已经在所有 macOS 12+ 设备上通过实机验证。候选 CI 计划覆盖 macOS 14 / 26、Apple Silicon 与 Intel 构建。macOS 12 / 13、其他设备、真实下载隔离和登录启动仍需发布前验证。
+应用元数据保留现有 macOS 12.0 最低版本声明；这不等于已经在所有 macOS 12+ 设备上通过实机验证。CI 覆盖 macOS 15 / 26、Apple Silicon 与 Intel 构建。GitHub 停用 macOS 14 测试机后，本版将该组 CI 迁移到 macOS 15；这不改变应用最低版本声明。旧系统、其他设备、真实下载隔离和登录启动仍需分别实机验证。
 
 用量优先来自 Codex app-server 的公开方法；桌面任务和未读状态仍使用只读兼容层。Codex 版本变化、第三方模型、API Key 登录或没有周额度的账户，都可能造成部分信息不可用。不可用不是额度为零。详见[兼容性说明](docs/COMPATIBILITY.md)。
 

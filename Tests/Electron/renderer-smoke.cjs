@@ -29,14 +29,21 @@ let settings = {
     pathLabel: "~/.codex", manualSelectionAvailable: false
   }, menuBarStatus: { state: "visible" }
 };
+const { speedPanel } = require(path.join(base, "token-speed.js"));
+const demoSpeeds = speedPanel([
+  { state: "unread", tokenSpeed: { completeStart:true,hasUsage:true,endedAt:Date.now(),durationMs:10000,output:450 } },
+  { state: "running", tokenSpeed: { samples:[{at:Date.now(),output:1230}],phase:"sampled" } },
+  { state: "completed", tokenSpeed: { completeStart:true,hasUsage:true,endedAt:Date.now(),durationMs:20000,output:700 } }
+], "zh-CN");
 const panelState = {
+  tokenSpeed: demoSpeeds.total,
   quotaValue: "81%", timeValue: "85%", resetValue: "5天 23小时",
   unreadCount: 1, runningCount: 1, health: "healthy", healthLabel: "正常使用",
   healthDescription: "演示数据", locale: "zh-CN", direction: "down",
   tasks: [
-    { id: "demo-unread", title: "整理项目计划", progress: "已完成，等待查看。", stateLabel: "待查看", stateClass: "unread" },
-    { id: "demo-running", title: "检查文档格式", progress: "正在核对文档。", stateLabel: "进行中", stateClass: "running" },
-    { id: "demo-processed", title: "核对代码样本", progress: "已查看。", stateLabel: "已处理", stateClass: "completed" }
+    { id: "demo-unread", title: "整理项目计划", progress: "已完成，等待查看。", stateLabel: "待查看", stateClass: "unread", speed:demoSpeeds.rows[0] },
+    { id: "demo-running", title: "检查文档格式与最新任务进展", progress: "正在核对文档格式、链接和完整内容。最新进展会持续显示在这里，保留原有三行摘要；速率移入标题栏后，不再挤占任务正文的宽度或高度。", stateLabel: "进行中", stateClass: "running", speed:demoSpeeds.rows[1] },
+    { id: "demo-processed", title: "核对代码样本", progress: "已查看。", stateLabel: "已处理", stateClass: "completed", speed:demoSpeeds.rows[2] }
   ], renderRevision: 1
 };
 let notificationExpanded = false;
@@ -98,8 +105,10 @@ app.whenReady().then(async () => {
   app.dock?.hide();
   const checks = [];
   try {
+    await require("./token-speed-worker-check.cjs")({ base, isolatedData });
+    checks.push("packaged external worker reads synthetic SQLite and incremental usage under Electron, switches live to average and clears total on stop");
     for (const [name, width, height] of [
-      ["dot", 64, 64], ["panel", 360, 410], ["settings", 560, 900], ["notification", 440, 144]
+      ["dot", 64, 64], ["panel", 360, 460], ["settings", 560, 900], ["notification", 440, 144]
     ]) {
       const win = new BrowserWindow({
         width, height, show: false, frame: false, transparent: true,
@@ -125,6 +134,42 @@ app.whenReady().then(async () => {
     checks.push("all four packaged pages render through production preloads and real main-frame IPC");
     await windows.panel.webContents.executeJavaScript("document.querySelector('.status-task-row').click()");
     await windows.settings.webContents.executeJavaScript("document.getElementById('showDesktopWidget').click()");
+    assert.equal(await windows.panel.webContents.executeJavaScript("document.querySelector('.status-speed-value').textContent"), "41.0 tok/s");
+    assert.equal(await windows.panel.webContents.executeJavaScript("document.querySelectorAll('.status-task-speed-value')[0].textContent"), "平均 45.0 tok/s");
+    assert.equal(await windows.panel.webContents.executeJavaScript("document.querySelectorAll('.status-task-speed-value')[1].textContent"), "实时 41.0 tok/s");
+    const layout = await windows.panel.webContents.executeJavaScript(`(() => {
+      const frame=document.querySelector('.status-popover-frame').getBoundingClientRect();
+      return {height:frame.height, overflow:document.documentElement.scrollWidth>innerWidth,
+        summaryInHeader:document.querySelector('.status-speed-value').parentElement.classList.contains('status-popover-header')
+          && document.querySelector('.status-popover-header').children[1].classList.contains('status-speed-value')
+          && document.querySelector('.status-popover-header').children[2].classList.contains('status-task-summary'),
+        noExtraArea:!document.querySelector('.status-speed-strip') && !document.querySelector('.status-task-speed'),
+        progress:[...document.querySelectorAll('.status-task-row')].every(row=>{
+          const text=row.querySelector('.status-task-update-text'), box=text.getBoundingClientRect(), headline=row.querySelector('.status-task-headline');
+          return box.bottom<=row.getBoundingClientRect().bottom-7 && box.width>=row.clientWidth-20 && getComputedStyle(text).webkitLineClamp==='3'
+            && headline.children[1].classList.contains('status-task-speed-value') && headline.children[2].classList.contains('status-task-phase');
+        })};
+    })()`);
+    assert(layout.height<=440 && !layout.overflow && layout.progress && layout.summaryInHeader && layout.noExtraArea, JSON.stringify(layout));
+    assert.equal(await windows.panel.webContents.executeJavaScript("document.querySelectorAll('.status-task-update-text')[1].textContent"),panelState.tasks[1].progress);
+    const longProgress = await windows.panel.webContents.executeJavaScript(`(() => {const e=document.querySelectorAll('.status-task-update-text')[1];return {height:e.getBoundingClientRect().height,line:parseFloat(getComputedStyle(e).lineHeight)};})()`);
+    assert(longProgress.height > longProgress.line*2,"three full lines of current progress must remain visible");
+    for (const seconds of [60,300,30]) {
+      await windows.settings.webContents.executeJavaScript(`var range=document.getElementById('tokenSpeedWindowSeconds');range.value='${seconds}';range.dispatchEvent(new Event('change',{bubbles:true}));`);
+      await waitFor("settings",`document.getElementById('tokenSpeedWindowSeconds').value === '${seconds}' && document.getElementById('save-state').textContent === '设置会自动保存'`);
+      assert.equal(settings.tokenSpeedWindowSeconds,seconds);
+    }
+    const stopped = speedPanel([{state:"completed",tokenSpeed:{completeStart:true,hasUsage:true,endedAt:Date.now(),durationMs:10000,output:250}}], "en");
+    windows.panel.webContents.send("companion:snapshot", {...panelState,locale:"en",runningCount:0,renderRevision:4,
+      tokenSpeed:stopped.total,tasks:[{...panelState.tasks[1],title:"Very long session name ".repeat(20),stateClass:"completed",stateLabel:"Processed",speed:stopped.rows[0]}]});
+    await waitFor("panel", "document.querySelector('.status-speed-value').textContent === '0.0 tok/s' && document.querySelector('.status-task-speed-value').textContent === 'Average 25.0 tok/s'");
+    assert.equal(await windows.panel.webContents.executeJavaScript("document.documentElement.scrollWidth <= innerWidth"),true);
+    windows.panel.webContents.send("companion:snapshot", {...panelState,locale:"en",unreadCount:123,runningCount:104,renderRevision:6,
+      copy:{taskProgress:"Task progress",unread:"To review",running:"Running",quotaRemaining:"Quota left",timeRemaining:"Time left",resetCountdown:"Resets in"}});
+    await waitFor("panel", "document.querySelector('.status-popover-title').textContent === 'Task progress'");
+    assert.equal(await windows.panel.webContents.executeJavaScript("document.querySelector('.status-popover-header').getBoundingClientRect().height <= 21 && document.documentElement.scrollWidth <= innerWidth"),true,"English labels and 99+ counts must not wrap the header or clip the task list");
+    windows.panel.webContents.send("companion:snapshot", {...panelState,renderRevision:5});
+    await waitFor("panel", "document.querySelectorAll('.status-task-row').length === 3");
     await waitFor("settings", "document.getElementById('showDesktopWidget').checked === false");
     await windows.notification.webContents.executeJavaScript("document.querySelector('.completion-notification-more').click()");
     await waitFor("notification", "document.querySelectorAll('.completion-notification-row').length === 3");

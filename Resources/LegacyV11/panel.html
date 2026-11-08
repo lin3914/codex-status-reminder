@@ -77,6 +77,7 @@
         const headline = createElement("div", "status-task-headline");
         headline.append(
           createElement("div", "status-task-title", task.title),
+          createElement("span", "status-task-speed-value"),
           createElement("span", `status-task-phase is-${task.stateClass}`, task.stateLabel)
         );
         const update = createElement("div", "status-task-update");
@@ -140,6 +141,8 @@
           ];
           grid.append(...cards);
           content.append(grid);
+          const speed = createElement("strong", "status-speed-value");
+          speed.tabIndex = 0;
           const section = createElement("div", "status-task-section");
           const header = createElement("div", "status-popover-header");
           const titleWrap = createElement("div", "status-popover-title-wrap");
@@ -156,7 +159,7 @@
             buildTaskMetric(state.unreadCount, copy.unread, "is-unread", copy.unread),
             buildTaskMetric(state.runningCount, copy.running, "is-running", copy.running)
           );
-          header.append(titleWrap, summary);
+          header.append(titleWrap, speed, summary);
           section.append(header);
           const scroll = createElement("div", "status-task-scroll");
           const list = createElement("div", "status-task-list");
@@ -171,7 +174,7 @@
           frame.append(content);
           root.append(frame);
           view = {
-            frame, content, cards, section, summary, scroll, list,
+            frame, content, cards, section, summary, scroll, list, speed,
             title: titleWrap.querySelector(".status-popover-title"),
             metrics: [...summary.children]
           };
@@ -180,8 +183,12 @@
         }
         const { frame, content, cards, section, summary, scroll, list, metrics } = view;
         if (list.parentElement) taskScrollTop = list.scrollTop;
-        const hasSection = state.tasks.length > 0 || state.runningCount > 0 || state.unreadCount > 0;
+        const hasSection = true;
         content.className = `status-popover-content is-${state.health || "neutral"}`;
+        const speed = state.tokenSpeed || { label: state.locale === "en" ? "Live throughput" : "整体实时有效速率", text: "— tok/s", detail: "", description: "" };
+        setText(view.speed, speed.text);
+        view.speed.title = speed.description;
+        view.speed.setAttribute("aria-label", `${speed.label} ${speed.text}。${speed.detail}。${speed.description}`);
         const labels = [copy.quotaRemaining, copy.timeRemaining, copy.resetCountdown];
         const values = [state.quotaValue, state.timeValue, state.resetValue];
         cards.forEach((card, index) => {
@@ -217,17 +224,22 @@
           if (!row) { row = buildTaskRow(task); taskRows.set(task.id, row); }
           setText(row.querySelector(".status-task-title"), task.title);
           setText(row.querySelector(".status-task-update-text"), task.progress);
+          row.querySelector(".status-task-title").title = task.title;
+          row.querySelector(".status-task-update-text").title = task.progress;
           const phase = row.querySelector(".status-task-phase");
           phase.className = `status-task-phase is-${task.stateClass}`;
           setText(phase, task.stateLabel);
-          row.setAttribute("aria-label", `${task.stateLabel}：${task.title}。${task.progress}`);
+          const rate = task.speed || { label: task.stateClass === "running" ? "实时" : "平均", text: "— tok/s", status: "", description: "" };
+          setText(row.querySelector(".status-task-speed-value"), `${rate.label} ${rate.text}`);
+          row.querySelector(".status-task-speed-value").title = `${rate.description}${rate.status ? ` ${rate.status}` : ""}`;
+          row.setAttribute("aria-label", `${task.stateLabel}：${task.title}。${task.progress}。${rate.label} ${rate.text} ${rate.status}`);
           if (list.children[index] !== row) list.insertBefore(row, list.children[index] || null);
         });
         const rows = Math.min(state.tasks.length, MAX_VISIBLE_TASK_ROWS);
         const layoutKey = JSON.stringify([state.locale, hasSection, rows]);
         const layoutChanged = layoutKey !== lastLayoutKey;
         if (layoutChanged) {
-          list.style.setProperty("--task-list-height", `${rows * 82 + Math.max(0, rows - 1) * 6}px`);
+          list.style.setProperty("--task-list-height", `${rows * 88 + Math.max(0, rows - 1) * 6}px`);
         }
         root.dataset.renderRevision = String(state.renderRevision);
         diagnostics.updates += 1;

@@ -64,7 +64,7 @@ class Element {
     return null;
   }
   get clientHeight() { return parseFloat(this.style.getPropertyValue("--task-list-height")) || 0; }
-  get scrollHeight() { return this.children.length * 82 + Math.max(0, this.children.length - 1) * 6; }
+  get scrollHeight() { return this.children.length * 88 + Math.max(0, this.children.length - 1) * 6; }
   getBoundingClientRect() { measures += 1; return { height: 394 }; }
 }
 const root = new Element("div");
@@ -108,7 +108,7 @@ const list = root.querySelector(".status-task-list");
 const first = list.children[0];
 assert.equal(measures, 1);
 assert.equal(list.children.length, 6, "all retained tasks, not just visible rows, remain accessible");
-assert.equal(list.clientHeight, 258);
+assert.equal(list.clientHeight, 276);
 assert.equal(frames.size, 0, "hidden preparation schedules no animation frames");
 list.scrollTop = 150;
 state = { ...state, quotaValue: "85%", renderRevision: 2,
@@ -150,7 +150,7 @@ render(state);
 assert.equal(measures, 3, "language changes invalidate cached layout");
 state = { ...state, tasks: [], unreadCount: 0, runningCount: 0, renderRevision: 6 };
 render(state);
-assert.equal(root.querySelector(".status-task-section"), null);
+assert(root.querySelector(".status-task-section"), "empty tasks still show the overall rate in the task header");
 assert.equal(root.querySelector(".status-task-list"), null);
 assert.equal(measures, 4);
 state = { ...state, tasks: [{ ...tasks[0], title: "<img src=x onerror=alert(1)>" }], unreadCount: 1, renderRevision: 7 };

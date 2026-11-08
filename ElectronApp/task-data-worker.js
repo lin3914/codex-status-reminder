@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { isMainThread, parentPort, workerData } = require("worker_threads");
 const { DatabaseSync } = require("node:sqlite");
+const { emptySpeed, observeSpeed } = require("./token-speed");
 const {
   buildChangedThreadQuery,
   buildThreadQuery,
@@ -52,7 +53,8 @@ function emptyObservation() {
     latestTerminalAt: 0,
     latestRateLimits: null,
     latestRateLimitsAt: 0,
-    isRunning: false
+    isRunning: false,
+    tokenSpeed: emptySpeed()
   };
 }
 
@@ -64,7 +66,9 @@ function updateObservation(observation, line) {
   } catch {
     return;
   }
+  if (!root || typeof root !== "object" || Array.isArray(root)) return;
   const timestamp = parseTimestamp(root.timestamp);
+  observeSpeed(observation.tokenSpeed, root);
   const payload = root.payload || {};
   const payloadType = payload.type;
   const terminalTimestamp = Math.max(
@@ -234,6 +238,28 @@ class IncrementalTranscriptReader {
     return entry.observation;
   }
 
+  backfillSpeed(filePath, budget) {
+    const cached = this.cache.get(filePath);
+    if (!cached || cached.speedBackfilled || cached.observation.tokenSpeed.completeStart) return 0;
+    const bytes = Math.min(cached.offset, 8 * 1024 * 1024);
+    if (bytes > budget) return -1;
+    cached.speedBackfilled = true;
+    try {
+      const start = cached.offset - bytes;
+      let text = this.readRange(filePath, start, cached.offset).toString("utf8");
+      if (start > 0) {
+        const newline = text.indexOf("\n");
+        text = newline < 0 ? "" : text.slice(newline + 1);
+      }
+      const speed = emptySpeed();
+      for (const line of text.split("\n")) {
+        try { observeSpeed(speed, JSON.parse(line)); } catch {}
+      }
+      cached.observation.tokenSpeed = speed;
+    } catch {}
+    return bytes;
+  }
+
   readAppend(filePath, stats, cached) {
     const buffer = this.readRange(filePath, cached.offset, stats.size);
     const text = cached.carry + buffer.toString("utf8");
@@ -260,8 +286,13 @@ class IncrementalTranscriptReader {
     const handle = fs.openSync(filePath, "r");
     try {
       const buffer = Buffer.allocUnsafe(length);
-      fs.readSync(handle, buffer, 0, length, start);
-      return buffer;
+      let read = 0;
+      while (read < length) {
+        const count = fs.readSync(handle, buffer, read, length - read, start + read);
+        if (count === 0) break;
+        read += count;
+      }
+      return buffer.subarray(0, read);
     } finally {
       fs.closeSync(handle);
     }
@@ -440,6 +471,16 @@ class TaskDataReader {
       }
     }
     this.transcripts.prune(keepPaths);
+    // One bounded, worker-only lookback for the displayed recent rows and
+    // active tasks. No full-history scan and no repeated reread of old files.
+    let speedBudget = 8 * 1024 * 1024;
+    let speedBackfillPending = false;
+    for (const [index, row] of rows.entries()) {
+      if (!row.rollout_path || (index >= 10 && !row.observation.isRunning)) continue;
+      const used = this.transcripts.backfillSpeed(row.rollout_path, speedBudget);
+      if (used < 0) speedBackfillPending = true;
+      else speedBudget -= used;
+    }
     return {
       unread,
       rows,
@@ -449,7 +490,8 @@ class TaskDataReader {
       durationMs: Date.now() - startedAt,
       queryMode,
       changedRowCount,
-      transcriptCacheSize: this.transcripts.cache.size
+      transcriptCacheSize: this.transcripts.cache.size,
+      speedBackfillPending
     };
   }
 }

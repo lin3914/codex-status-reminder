@@ -1,12 +1,12 @@
 # 发行流程
 
-## 当前发布：1.9.15（66）公开试用包
+## 当前发布：1.9.16（68）公开试用包
 
-维护者已明确批准发布本轮验证通过的原始 Apple Silicon DMG 和 ZIP。发布内容是 **ad-hoc 签名、未公证试用包**，不是下文的 Developer ID 正式发行流程；不运行签名工作流，不把 `binaryPublicationApproved` 改为 true 来暗示正式发行门禁已通过。
+维护者已明确批准发布本轮验证通过的 Apple Silicon 1.9.16（68）。ZIP沿用最终验证文件，DMG只增加安装容器，内部应用逐文件相同。发布内容是 **ad-hoc 签名、未公证试用包**，不是下文的 Developer ID 正式发行流程；不运行签名工作流，不把 `binaryPublicationApproved` 改为 true 来暗示正式发行门禁已通过。
 
-1. 提交并审阅 1.9.15 源码、说明和版本清单，完成分支保护要求的 CI 检查。
-2. 将通过检查的版本合入 main，以对应提交创建 `v1.9.15` 标签；标签与已公开资产不覆盖或重用。
-3. 创建 Draft Release，逐个上传[版本清单](releases/v1.9.15.json)指定的原始安装包、SHA256SUMS 和清单，不重新构建或修改包内文件。
+1. 提交并审阅 1.9.16 源码、说明和版本清单，完成分支保护要求的 CI 检查。
+2. 将通过检查的版本合入 main，以对应提交创建 `v1.9.16` 标签；标签与已公开资产不覆盖或重用。
+3. 创建 Draft Release，逐个上传[版本清单](releases/v1.9.16.json)指定的安装包、SHA256SUMS 和清单，不重新构建或修改包内应用。
 4. 核对资产大小和 SHA-256；公开后通过不带登录凭据的下载链接回下载复核，确认与本地已安装验证的文件完全一致。
 5. 将它设为 GitHub 最新发布，同时在中英文 README 和使用说明列出直接下载、首次打开限制与保留配置的更新方法。
 
@@ -30,10 +30,10 @@
 
 所需 Secrets：`MACOS_SIGN_IDENTITY`、`MACOS_CERTIFICATE_BASE64`、`MACOS_CERTIFICATE_PASSWORD`、`MACOS_KEYCHAIN_PASSWORD`、`APPLE_ID`、`APPLE_APP_PASSWORD`、`APPLE_TEAM_ID`。也可以改用 Apple 官方支持的 App Store Connect API key 公证方式；需单独接线和验证，不能仅改变量名。
 
-发行前运行 `npm run check:electron-support`，从 Electron 官方发布索引检查支持线和本大版本的最新补丁；网络失败或补丁过期时阻止二进制发行。候选将基线 43.4.1 更新到 2026-10-08 查询的同线最新补丁 43.7.9，不跨大版本。不能靠“major ≥ 43”的静态判断永久宣称受支持，也不能把 npm audit 没发现漏洞当作 Chromium 已没有漏洞的证明。
+发行前运行 `npm run check:electron-support`，从 Electron 官方发布索引检查支持线和本大版本的最新补丁；网络失败或补丁过期时阻止二进制发行。本版使用43.8.7，2026-11-08查询确认仍在支持线内且为该大版本最新补丁。不能靠“major ≥ 43”的静态判断永久宣称受支持，也不能把 npm audit 没发现漏洞当作 Chromium 已没有漏洞的证明。
 
 1. 完成 [实机验收清单](QA_CHECKLIST.md)，批准 binaryPublicationApproved。
-2. 为完成回归的提交创建版本 tag。当前源码版本为 1.9.15（66），增加打开 Codex 撤回全部提醒、标准浮动层级与不重复抬高窗口，并保留完成提醒的故障恢复；递增 patch 与 build，避免同版本对应不同产物。
+2. 为完成回归的提交创建版本 tag。当前源码版本为 1.9.16（68），增加统一标题栏 Token 速率与可配置采样范围，保留最新任务进展、额度和完成提醒；递增 patch 与 build，避免同版本对应不同产物。
 3. 手动运行 “Prepare signed macOS draft”，选择已审阅 tag。默认只生成 arm64 包；Intel 完成真实设备测试后才选择双架构。
 4. 工作流运行测试、许可／源码检查，导入证书，构建、签名、公证、staple、Gatekeeper 校验，生成 SHA256SUMS。
 5. 仅创建 Draft + Prerelease。不自动公开、不覆盖旧资产。
