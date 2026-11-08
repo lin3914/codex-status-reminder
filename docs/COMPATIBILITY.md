@@ -4,7 +4,7 @@
 
 app metadata 和原生恢复 helper 的最低版本保持 macOS 12.0。Swift Package 中部分历史模型库声明 macOS 14，是开发／兼容库，不是当前 Electron 安装包的另一个应用。没有仅因整理仓库而提高当前安装包的最低系统版本。
 
-CI 使用 macOS 14（arm64）、macOS 26（arm64）和 macOS 26 Intel 的官方 runner；每次发行提交均需独立通过该矩阵的分支保护检查。具体提交结果以 [GitHub Actions](https://github.com/lin3914/codex-status-reminder/actions/workflows/ci.yml) 为准。runner 上的构建和隔离窗口测试不证明 macOS 12/13、真实多显示器、全屏、睡眠唤醒与登录项均通过。
+CI 使用 macOS 15（arm64）、macOS 26（arm64）和 macOS 26 Intel 的官方 runner；每次发行提交均需独立通过该矩阵的分支保护检查。GitHub于2026-11-02停用macOS 14镜像后，经维护者确认迁移到macOS 15，并同步更新三项必过检查名称；不关闭或跳过分支保护，不改变应用的最低系统版本声明。具体提交结果以 [GitHub Actions](https://github.com/lin3914/codex-status-reminder/actions/workflows/ci.yml) 为准。runner 上的构建和隔离窗口测试不证明旧系统、真实多显示器、全屏、睡眠唤醒与登录项均通过。[官方停用公告](https://github.com/actions/runner-images/issues/13518)。
 
 发布前还需真实 Apple Silicon Mac；Intel 构建成功也不能替代 Intel Mac 安装与交互验收。初次只公开已验证的处理器包。
 

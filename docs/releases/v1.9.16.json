@@ -18,6 +18,7 @@
     "timezone": "Asia/Shanghai",
     "realDeviceOS": "macOS 27.0 (26A428)",
     "realDeviceArchitecture": "arm64",
+    "ciRunners": ["macos-15", "macos-26", "macos-26-intel"],
     "packagedRendererGroups": 6,
     "packagedNotificationChecks": 17,
     "configurationPreserved": true,
