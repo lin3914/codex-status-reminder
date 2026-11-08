@@ -4,7 +4,7 @@
 
 app metadata 和原生恢复 helper 的最低版本保持 macOS 12.0。Swift Package 中部分历史模型库声明 macOS 14，是开发／兼容库，不是当前 Electron 安装包的另一个应用。没有仅因整理仓库而提高当前安装包的最低系统版本。
 
-CI 使用 macOS 14（arm64）、macOS 26（arm64）和 macOS 26 Intel 的官方 runner；1.9.13 已在该矩阵通过，后续每次改动仍需独立通过分支保护检查。具体提交结果以 [GitHub Actions](https://github.com/lin3914/codex-status-reminder/actions/workflows/ci.yml) 为准。runner 上的构建和隔离窗口测试不证明 macOS 12/13、真实多显示器、全屏、睡眠唤醒与登录项均通过。
+CI 使用 macOS 14（arm64）、macOS 26（arm64）和 macOS 26 Intel 的官方 runner；每次发行提交均需独立通过该矩阵的分支保护检查。具体提交结果以 [GitHub Actions](https://github.com/lin3914/codex-status-reminder/actions/workflows/ci.yml) 为准。runner 上的构建和隔离窗口测试不证明 macOS 12/13、真实多显示器、全屏、睡眠唤醒与登录项均通过。
 
 发布前还需真实 Apple Silicon Mac；Intel 构建成功也不能替代 Intel Mac 安装与交互验收。初次只公开已验证的处理器包。
 
@@ -15,6 +15,8 @@ CI 使用 macOS 14（arm64）、macOS 26（arm64）和 macOS 26 Intel 的官方 
 用量优先使用 Codex app-server 的非实验 `account/rateLimits/read`。它是本机程序提供的公开协议，不是无需 Codex 的远程用量 API。任务／未读的本地兼容层依赖客户端文件格式与 IPC，需随 Codex 版本更新。
 
 第三方 provider、API Key 或缺少周期额度的账户可能没有周额度；远端／云端会话未必完整保存在本机。不会编造百分比填满卡片。用量读取失败时可使用最后有效缓存，整次任务查询失败时可能暂留旧列表，不能将两者理解成未读状态也有缓存。
+
+1.9.16的Token速率来自本地分批上报的输出用量，不是逐Token流式计数。统计包含思考Token，排除输入和缓存Token；仅覆盖已同步的顶层本地会话。缺少完整轮次、计数回退或所选范围覆盖不足时显示未知。已结束会话按最近一轮完整运行计算平均值，不按整个会话创建至今的日历时长计算。
 
 1.9.14 修复未读单独读取失败时的误分类：停止任务显示“待同步”，待查看计数显示“–”；不可用不冒充已读，有效回执恢复后自动重新分类，提醒不会被批量清除。合成固定样本、生产刷新／呈现函数和真实打包窗口覆盖失败恢复；不同真实 Codex 版本仍须分别验收。
 

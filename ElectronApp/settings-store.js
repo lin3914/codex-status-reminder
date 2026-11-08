@@ -9,6 +9,7 @@ const {
   normalizeQuotaHealthThresholds
 } = require("./quota-health");
 const { normalizeCodexConnection } = require("./codex-connection");
+const { normalizeWindowSeconds } = require("./token-speed");
 
 const SETTINGS_SCHEMA_VERSION = 5;
 const QUOTA_HEALTH_SCHEMA_VERSION = 3;
@@ -17,6 +18,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   locale: "system",
   showDesktopWidget: true,
   showMenuBarQuota: true,
+  tokenSpeedWindowSeconds: 30,
   notifyOnUnreadCompletion: true,
   quotaHealthMode: DEFAULT_QUOTA_HEALTH_MODE,
   quotaHealthyLeadDays: DEFAULT_HEALTHY_LEAD_DAYS,
@@ -118,6 +120,7 @@ function normalizeSettings(value = {}) {
       source.showMenuBarQuota,
       DEFAULT_SETTINGS.showMenuBarQuota
     ),
+    tokenSpeedWindowSeconds: normalizeWindowSeconds(source.tokenSpeedWindowSeconds),
     notifyOnUnreadCompletion: booleanOrDefault(
       source.notifyOnUnreadCompletion,
       DEFAULT_SETTINGS.notifyOnUnreadCompletion
@@ -151,6 +154,7 @@ function editableSettings(value = {}) {
     locale: normalized.locale,
     showDesktopWidget: normalized.showDesktopWidget,
     showMenuBarQuota: normalized.showMenuBarQuota,
+    tokenSpeedWindowSeconds: normalized.tokenSpeedWindowSeconds,
     notifyOnUnreadCompletion: normalized.notifyOnUnreadCompletion,
     quotaHealthMode: normalized.quotaHealthMode,
     quotaHealthyLeadDays: normalized.quotaHealthyLeadDays,

@@ -214,7 +214,7 @@ body {
 
 .status-popover-title-wrap {
   display: flex;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   align-items: center;
   min-width: 0;
   gap: 8px;
@@ -376,13 +376,16 @@ body {
   opacity: 1;
 }
 
+.status-speed-value { flex: 0 0 auto; margin-left: auto; color: #c8e8e3; font-size: 12px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.status-speed-value:focus-visible { outline: 2px solid #75d9ce; outline-offset: 2px; }
+.status-task-speed-value { flex: 0 0 auto; color: #b7d4d0; font-size: 9.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .status-task-row {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
   min-width: 0;
-  height: 82px;
-  min-height: 82px;
+  height: 88px;
+  min-height: 88px;
   padding: 8px 9px;
   overflow: hidden;
   color: inherit;
@@ -418,7 +421,7 @@ body {
   width: 100%;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .status-task-title {

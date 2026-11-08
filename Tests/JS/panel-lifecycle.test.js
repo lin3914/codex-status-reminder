@@ -67,6 +67,7 @@ function harness() {
     ipcMain: { on: (name, callback) => ipc.set(name, callback) },
     quitting: false,
     panelWindow: null, panelAnchor: null, panelRendererReady: false, panelClockTimer: null,
+    speedDisplayTimer: null, scheduleSpeedDisplay() {},
     panelHiddenSince: null, panelSnapshotJSON: null, panelPresentationID: 0,
     panelPresentationSentKey: null, panelLastFrameLatencyMs: null,
     panelLastRendererMemoryKB: null, panelMemoryReleaseCount: 0, panelPrewarmCount: 0,

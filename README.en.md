@@ -4,15 +4,15 @@ A third-party macOS companion for Codex. See weekly quota, reset time and recent
 
 This app is independent of OpenAI and is not an official OpenAI product. End users do not need to install Electron or Node.js separately.
 
-The project is licensed under [Apache-2.0](LICENSE). The maintainer has confirmed the rights to publish the code and icons. Current download: **1.9.15 (66), Apple Silicon public trial**. It is ad-hoc signed, not Developer ID-signed or Apple-notarized. macOS may block the first launch; do not disable system security.
+The project is licensed under [Apache-2.0](LICENSE). The maintainer has confirmed the rights to publish the code and icons. Current download: **1.9.16 (68), Apple Silicon public trial**. It is ad-hoc signed, not Developer ID-signed or Apple-notarized. macOS may block the first launch; do not disable system security.
 
 When unread receipts are unavailable, tasks show a syncing state and the count is unknown, never assumed to be viewed. Compatibility with individual real Codex versions still needs validation; see [compatibility](docs/COMPATIBILITY.md).
 
 ## Download and install
 
-[Download 1.9.15 DMG (recommended)](https://github.com/lin3914/codex-status-reminder/releases/download/v1.9.15/CodeX-Status-Reminder-1.9.15-66-trial-macos-arm64.dmg) · [ZIP](https://github.com/lin3914/codex-status-reminder/releases/download/v1.9.15/CodeX-Status-Reminder-1.9.15-66-trial-macos-arm64.zip) · [Release notes and checksums](https://github.com/lin3914/codex-status-reminder/releases/tag/v1.9.15) · [Latest release](https://github.com/lin3914/codex-status-reminder/releases/latest)
+[Download 1.9.16 DMG (recommended)](https://github.com/lin3914/codex-status-reminder/releases/download/v1.9.16/CodeX-Status-Reminder-1.9.16-68-trial-macos-arm64.dmg) · [ZIP](https://github.com/lin3914/codex-status-reminder/releases/download/v1.9.16/CodeX-Status-Reminder-1.9.16-68-trial-macos-arm64.zip) · [Release notes and checksums](https://github.com/lin3914/codex-status-reminder/releases/tag/v1.9.16) · [Latest release](https://github.com/lin3914/codex-status-reminder/releases/latest)
 
-M-series Macs only; no Intel binary is published. These are the original files used for the local installation and notification checks, not newly rebuilt replacements. See the [version manifest](docs/releases/v1.9.15.json).
+M-series Macs only; no Intel binary is published. The ZIP is byte-identical to the validated local archive. Every application file in the DMG matches the installed app; the app was not rebuilt for publication. See the [version manifest](docs/releases/v1.9.16.json).
 
 Install and sign in to Codex first. Open the DMG and drag the app to Applications, then launch it there. For upgrades, quit the old app and replace it without deleting its configuration. If you trust the source and verify the checksum, follow [Apple's instructions](https://support.apple.com/en-us/102445) to allow this particular unnotarized app. Managed devices may prevent that. Do not remove quarantine or bypass malware/damage warnings.
 
@@ -22,6 +22,8 @@ Install and sign in to Codex first. Open the DMG and drag the app to Application
 - Right-click for settings. Hover does not open the panel.
 - The optional desktop widget expands on hover, can be dragged, and stays above ordinary windows. It is hidden in full-screen apps.
 - Green means stopped and unread, pale yellow means active, gray means stopped and viewed.
+- Overall and per-session rates sit immediately before their status tags, leaving the full-width, three-line progress text intact. Choose a 30-second, 1-minute or 5-minute live window in General settings; 30 seconds is the default. Ended sessions keep their latest complete turn average, including tools and waiting but excluding idle time between user messages.
+- Token usage is reported in batches and includes reasoning output. A missing sample shows `—`, not a retained historical rate. This is sampled throughput, not a per-token instantaneous stream.
 - Completion cards persist without a timeout, but opening or switching back to Codex dismisses the entire group. Switching away does not restore those old alerts. Clicking a card opens its conversation; the close button dismisses only that card. Dismissal does not mark any Codex conversation as read. Later background completions can still notify.
 - Cards use the standard floating window level. Newer notifications from other apps can appear above them, and background refreshes do not repeatedly raise our cards.
 - Quota health compares quota consumption with elapsed time. The default healthy lead is 12 hours; the default alert line is 24 hours. Both can be adjusted through the linked/custom modes.

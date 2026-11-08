@@ -50,6 +50,7 @@ const {
   normalizeSettings
 } = require("./settings-store");
 const { TaskDataClient } = require("./task-data-client");
+const { speedPanel } = require("./token-speed");
 const {
   automaticCodexConnection,
   AUTO_DISCOVERY_MANUAL_FALLBACK_ATTEMPTS,
@@ -121,7 +122,7 @@ const DOT_SIZE = 44;
 const DOT_WINDOW_SIZE = 64;
 const DESKTOP_WIDGET_ALWAYS_ON_TOP_LEVEL = "pop-up-menu";
 const PANEL_WIDTH = 360;
-const PANEL_MAX_HEIGHT = 400;
+const PANEL_MAX_HEIGHT = 440;
 const PANEL_GAP = 2;
 const HOVER_OPEN_MS = 80;
 const HOVER_CLOSE_MS = 280;
@@ -142,7 +143,7 @@ const MENU_BAR_PLACEMENT_GRACE_MS = 4_000;
 const BACKGROUND_RECOVERY_STABILITY_MS = 30_000;
 const ACTIVE_DISCOVERY_WINDOW_MS = 5 * 60_000;
 const TRANSCRIPT_RUNNING_MAX_AGE_MS = 24 * 60 * 60_000;
-const APP_VERSION = "1.9.15";
+const APP_VERSION = "1.9.16";
 const APP_SESSION_STARTED_AT = Date.now();
 // Do not reuse the pre-release bundle identities below. macOS 26 Control
 // Center persists per-status-item state by bundle identity, including state
@@ -230,6 +231,7 @@ let panelArrowX = PANEL_WIDTH / 2;
 let panelReportedHeight = 1;
 let panelRendererReady = false;
 let panelClockTimer = null;
+let speedDisplayTimer = null;
 let panelHiddenSince = null;
 let panelSnapshotJSON = null;
 let panelPresentationID = 0;
@@ -897,8 +899,8 @@ function handleLeave() {
 
 function estimatedPanelHeight() {
   const rows = Math.min(snapshot.tasks.length, 3);
-  if (rows === 0) return 86;
-  return Math.min(128 + rows * 88, PANEL_MAX_HEIGHT);
+  if (rows === 0) return 127;
+  return Math.min(128 + rows * 94, PANEL_MAX_HEIGHT);
 }
 
 function calculatePanelBounds(height, anchor = panelAnchor || { type: "dot" }) {
@@ -1055,6 +1057,7 @@ function showPreparedPanel(message) {
   ) return;
   panelWindow.setOpacity(1);
   panelWindow.showInactive();
+  scheduleSpeedDisplay();
   if (panelOpenStartedAt !== null) {
     panelLastOpenLatencyMs = Date.now() - panelOpenStartedAt;
   }
@@ -1110,6 +1113,8 @@ function repositionPanel() {
 }
 
 function closePanel() {
+  clearTimeout(speedDisplayTimer);
+  speedDisplayTimer = null;
   clearHoverOpenTimer();
   clearHoverCloseTimer();
   if (!panelWindow || panelWindow.isDestroyed()) {
@@ -1137,6 +1142,8 @@ function clearPanelClockTimer() {
 }
 
 function destroyPanel() {
+  clearTimeout(speedDisplayTimer);
+  speedDisplayTimer = null;
   clearHoverOpenTimer();
   clearHoverCloseTimer();
   clearPanelClockTimer();
@@ -1928,6 +1935,7 @@ function updateSettings(patch) {
     "locale",
     "showDesktopWidget",
     "showMenuBarQuota",
+    "tokenSpeedWindowSeconds",
     "notifyOnUnreadCompletion",
     "quotaHealthMode",
     "quotaHealthyLeadDays",
@@ -2876,7 +2884,8 @@ async function refreshTasks() {
         progress,
         state,
         completedAt: observation.latestCompletedAt,
-        activityAt
+        activityAt,
+        tokenSpeed: observation.tokenSpeed || null
       });
     }
     syncTranscriptWatchers(transcriptPaths);
@@ -2908,6 +2917,7 @@ async function refreshTasks() {
       .map((candidate) => candidate.id);
     void runtimeStatusClient?.refreshCandidates(candidateIds);
     persistResourceDiagnostics();
+    if (result.speedBackfillPending) taskRefreshQueued = true;
   } catch {
     // Keep the last known snapshot. The low-frequency fallback will retry,
     // while Codex IPC and file watchers can schedule an earlier refresh.
@@ -3106,6 +3116,7 @@ function dotSnapshot() {
 
 function panelSnapshot() {
   const quota = snapshot.quota;
+  const speeds = speedPanel(snapshot.tasks, effectiveLocale(), Date.now(), settings.tokenSpeedWindowSeconds);
   const copy = copyFor();
   const health = copy.health[quota.health] || copy.health.neutral;
   return {
@@ -3122,6 +3133,7 @@ function panelSnapshot() {
     resetValue: quota.available ? formatCountdown(quota.resetAt) : "待同步",
     unreadCount: snapshot.unreadAvailable === false ? "–" : snapshot.unreadCount,
     runningCount: snapshot.runningCount,
+    tokenSpeed: speeds.total,
     copy: {
       quotaRemaining: copy.quotaRemaining,
       timeRemaining: copy.timeRemaining,
@@ -3132,7 +3144,7 @@ function panelSnapshot() {
       completed: copy.completed,
       syncing: copy.syncing
     },
-    tasks: snapshot.tasks.map((task) => ({
+    tasks: snapshot.tasks.map((task, index) => ({
       id: task.id,
       title: task.title,
       progress: task.progress,
@@ -3140,9 +3152,22 @@ function panelSnapshot() {
         ? copy.unread
         : task.state === "running" ? copy.running
           : task.state === "unknown" ? copy.syncing : copy.completed,
-      stateClass: task.state
+      stateClass: task.state,
+      speed: speeds.rows[index]
     }))
   };
+}
+
+function scheduleSpeedDisplay() {
+  clearTimeout(speedDisplayTimer);
+  speedDisplayTimer = null;
+  if (quitting || !panelWindow || panelWindow.isDestroyed() || !panelWindow.isVisible()
+      || !snapshot.tasks.some(task => task.state === "running")) return;
+  speedDisplayTimer = setTimeout(() => {
+    speedDisplayTimer = null;
+    sendPanelSnapshot();
+  }, 1000);
+  speedDisplayTimer.unref?.();
 }
 
 function sendDotSnapshot() {
@@ -3167,6 +3192,7 @@ function sendPanelSnapshot() {
     });
   }
   schedulePanelClockUpdate();
+  scheduleSpeedDisplay();
 }
 
 function schedulePanelClockUpdate() {

@@ -32,8 +32,8 @@ const result = spawnSync(path.join(runtime, "Contents/MacOS/Electron"), [
 if (result.error) throw result.error;
 const report = JSON.parse(fs.readFileSync(path.join(reportDir, "renderer-smoke.json"), "utf8"));
 if (report.runID !== runID || report.version !== appVersion || report.electron !== version
-    || report.passed !== true || report.checks?.length !== 5) {
+    || report.passed !== true || report.checks?.length !== 6) {
   throw new Error("Incomplete, stale, failed or wrong-runtime renderer report: " + reportDir);
 }
-console.log("PASS fresh renderer report: 5/5, version " + report.version);
+console.log("PASS fresh renderer report: 6/6, version " + report.version);
 process.exitCode = result.status ?? 1;

@@ -13,6 +13,9 @@ assert.deepStrictEqual(editableSettings(defaults), DEFAULT_SETTINGS);
 assert.equal(defaults.settingsSchemaVersion, SETTINGS_SCHEMA_VERSION);
 assert.equal(defaults.locale, "system");
 assert.equal(defaults.showMenuBarQuota, true);
+assert.equal(defaults.tokenSpeedWindowSeconds, 30);
+for (const seconds of [30, 60, 300]) assert.equal(normalizeSettings({tokenSpeedWindowSeconds:seconds}).tokenSpeedWindowSeconds, seconds);
+for (const invalid of [0, -1, 45, null, "invalid"]) assert.equal(normalizeSettings({tokenSpeedWindowSeconds:invalid}).tokenSpeedWindowSeconds, 30);
 assert.equal(defaults.onboardingCompleted, false);
 for (const fixedKey of [
   "showHoverPanel",
@@ -68,6 +71,7 @@ assert.deepStrictEqual(editableSettings(configured), {
   locale: "en",
   showDesktopWidget: false,
   showMenuBarQuota: false,
+  tokenSpeedWindowSeconds: 30,
   notifyOnUnreadCompletion: false,
   quotaHealthMode: "custom",
   quotaHealthyLeadDays: 0.5,

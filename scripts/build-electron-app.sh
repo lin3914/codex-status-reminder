@@ -245,6 +245,7 @@ done
 /bin/cp "$project_dir/ElectronApp/codex-ipc-status.js" "$stage_dir/codex-ipc-status.js"
 /bin/cp "$project_dir/ElectronApp/task-data-client.js" "$stage_dir/task-data-client.js"
 /bin/cp "$project_dir/ElectronApp/task-data-worker.js" "$stage_dir/task-data-worker.js"
+/bin/cp "$project_dir/ElectronApp/token-speed.js" "$stage_dir/token-speed.js"
 /bin/cp "$project_dir/ElectronApp/codex-discovery.js" "$stage_dir/codex-discovery.js"
 /bin/cp "$project_dir/ElectronApp/codex-state.js" "$stage_dir/codex-state.js"
 /bin/cp "$project_dir/ElectronApp/task-classification.js" "$stage_dir/task-classification.js"
@@ -297,6 +298,7 @@ fi
 /bin/cp "$tray_icon_dir/CodexQuotaStarTemplate@2x.png" "$resources_dir/TrayIcon/"
 /bin/mkdir -p "$resources_dir/Worker"
 /bin/cp "$project_dir/ElectronApp/task-data-worker.js" "$resources_dir/Worker/"
+/bin/cp "$project_dir/ElectronApp/token-speed.js" "$resources_dir/Worker/"
 /bin/cp "$project_dir/ElectronApp/codex-state.js" "$resources_dir/Worker/"
 /bin/cp "$project_dir/ElectronApp/quota-data-worker.js" "$resources_dir/Worker/"
 /bin/cp "$project_dir/ElectronApp/codex-app-server-client.js" "$resources_dir/Worker/"
@@ -330,8 +332,8 @@ NODE
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.lindaozhi.codexstatusreminder" "$info_plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile icon.icns" "$info_plist" 2>/dev/null \
   || /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string icon.icns" "$info_plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.9.15" "$info_plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 66" "$info_plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.9.16" "$info_plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 68" "$info_plist"
 if ! /usr/libexec/PlistBuddy \
   -c "Set :ElectronAsarIntegrity:Resources/app.asar:hash $asar_hash" \
   "$info_plist" 2>/dev/null; then

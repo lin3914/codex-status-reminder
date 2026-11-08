@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "repository": "lin3914/codex-status-reminder",
+  "tag": "v1.9.16",
+  "version": "1.9.16",
+  "build": "68",
+  "channel": "public-trial",
+  "architecture": "arm64",
+  "electronVersion": "43.8.7",
+  "bundleIdentifier": "com.lindaozhi.codexstatusreminder",
+  "signing": {
+    "type": "ad-hoc",
+    "developerID": false,
+    "notarized": false
+  },
+  "validation": {
+    "localTestDate": "2026-11-08",
+    "timezone": "Asia/Shanghai",
+    "realDeviceOS": "macOS 27.0 (26A428)",
+    "realDeviceArchitecture": "arm64",
+    "packagedRendererGroups": 6,
+    "packagedNotificationChecks": 17,
+    "configurationPreserved": true,
+    "normalRestartAndDebugPortClosed": true,
+    "unifiedRateBeforeStatusTags": true,
+    "latestProgressThreeLinesPreserved": true,
+    "samplingWindowSeconds": [
+      30,
+      60,
+      300
+    ],
+    "defaultSamplingWindowSeconds": 30,
+    "realSession": {
+      "observedActiveFrames": 39,
+      "independentlyMatchedPositiveFrames": 25,
+      "progressUpdates": 5,
+      "outputTokens": 150,
+      "durationMs": 41104,
+      "displayedAverageTokensPerSecond": 3.6,
+      "stoppedSessionExcludedFromLive": true,
+      "averageRetainedAfterRestart": true
+    },
+    "installedApplicationTreeEntries": 298,
+    "zipMatchesValidatedFile": true,
+    "dmgApplicationMatchesInstalledTree": true,
+    "crossDeviceAcceptanceCompleted": false
+  },
+  "assets": [
+    {
+      "name": "CodeX-Status-Reminder-1.9.16-68-trial-macos-arm64.dmg",
+      "size": 139104401,
+      "sha256": "b57b3eb4aedfce4191b7688c59b1bf56badf62761cee83d4d543b42fa3d1c451"
+    },
+    {
+      "name": "CodeX-Status-Reminder-1.9.16-68-trial-macos-arm64.zip",
+      "size": 123623574,
+      "sha256": "292f0b7794119775499bb01fce03d0a8248599252bb36e001529d91561195961"
+    }
+  ],
+  "applicationPayloadSha256": {
+    "Contents/Resources/app.asar": "c5fa3333fb92e7697f7f23b84bac23dda3f3cf6b39c2e19c6063f0b6e7092445",
+    "Contents/Resources/Recovery/CodexCompanionRecovery": "4a65122ea60eabeb4ebea49b8a03840826218f98da77a880c9fab617d6e36522",
+    "Contents/Resources/Worker/token-speed.js": "d48e1fb8b0a0c4a65b7c013683a4d4db0982e628be33e325f014f6e0bbaf2b7d",
+    "Contents/Resources/Worker/task-data-worker.js": "8a7bd34e2b8d62b1ca80fd9dc6c1f820c45fcba6e733be8cc306c874dd80df97"
+  },
+  "sourceSha256": {
+    "ElectronApp/main.js": "1bb57d249125c7c9eef7f11f2f420315b892d476c16c8b75d4a0bc7726dea608",
+    "ElectronApp/token-speed.js": "d48e1fb8b0a0c4a65b7c013683a4d4db0982e628be33e325f014f6e0bbaf2b7d",
+    "ElectronApp/settings-store.js": "35fbc553050247e98050301afa5fcff0e3601f57cdc75282c3a353127ee17ae9",
+    "ElectronApp/task-data-worker.js": "8a7bd34e2b8d62b1ca80fd9dc6c1f820c45fcba6e733be8cc306c874dd80df97",
+    "ElectronApp/package.json": "98585d852af2b889671d5f1d48506422695803245c3fd87103738a183dd2ffa4",
+    "Resources/Info.plist": "cb57a3a2ed1f08b7b7cb9cf3afb56cfc47fc169fb2f928ab3c0e2a9c32fa3a54",
+    "Resources/LegacyV11/panel.html": "a42ca7f394f0da27645b54ce5986d8472c1772c4c49f4f68d27536ce8ba2cf29",
+    "Resources/LegacyV11/pet-panel.css": "e60adc182798dc3331f196195da488ed763f2ca2038379fc3bbb3394860f765c",
+    "Resources/LegacyV11/settings.html": "dcb73b94da167520a4b4f9d89cd74d78274aae12b762dbf2570bfd0c37799f94",
+    "scripts/build-electron-app.sh": "6b6849d1aa4239b837b6a1b0b21f9d16ba0b5e313f415e54bb3999bc862e4efa",
+    "package.json": "feb1f444b80a5a6121b87246d97066d29d55f2b2d5c5b9d783b9e64341564c18",
+    "package-lock.json": "f2d91794bfa662f61cd280e9b80785f99f812e07b5d86a47e8c0e4e0fd2b5bd8"
+  }
+}

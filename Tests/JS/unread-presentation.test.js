@@ -5,9 +5,11 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const classification = require("../../ElectronApp/task-classification");
 const { formatTrayTaskLine } = require("../../ElectronApp/tray-icon");
+const { speedPanel } = require("../../ElectronApp/token-speed");
 const source = fs.readFileSync(path.resolve(__dirname, "../../ElectronApp/main.js"), "utf8");
 let response, notifiedReceipts, broadcasts = 0;
-const context = { ...classification, Date, Set, Map,
+const context = { ...classification, speedPanel, Date, Set, Map,
+  settings: { tokenSpeedWindowSeconds: 30 },
   snapshot: {quota: {available: false, health: "neutral"}, tasks: [], unreadAvailable: false, unreadCount: 0, runningCount: 0},
   refreshingTasks: false, taskRefreshQueued: false, lastTaskSnapshotJSON: "",
   runtimeStatusClient: {statusFor: () => "idle", refreshCandidates() {}},
