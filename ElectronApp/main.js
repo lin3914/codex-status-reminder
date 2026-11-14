@@ -38,7 +38,6 @@ const {
   notificationCopy,
   planCompletionNotifications
 } = require("./completion-notifications");
-const { evaluateQuotaHealth } = require("./quota-health");
 const {
   fetchCodexQuota,
   fetchQuotaWithFallback
@@ -50,7 +49,7 @@ const {
   normalizeSettings
 } = require("./settings-store");
 const { TaskDataClient } = require("./task-data-client");
-const { speedPanel } = require("./token-speed");
+const { speedPanel, nextSpeedUpdateDelay } = require("./token-speed");
 const {
   automaticCodexConnection,
   AUTO_DISCOVERY_MANUAL_FALLBACK_ATTEMPTS,
@@ -121,8 +120,8 @@ const QUOTA_CACHE_PATH = path.join(
 const DOT_SIZE = 44;
 const DOT_WINDOW_SIZE = 64;
 const DESKTOP_WIDGET_ALWAYS_ON_TOP_LEVEL = "pop-up-menu";
-const PANEL_WIDTH = 360;
-const PANEL_MAX_HEIGHT = 440;
+const PANEL_WIDTH = 400;
+const PANEL_MAX_HEIGHT = 545;
 const PANEL_GAP = 2;
 const HOVER_OPEN_MS = 80;
 const HOVER_CLOSE_MS = 280;
@@ -133,6 +132,8 @@ const PANEL_RENDERER_MEMORY_BUDGET_KB = 192 * 1024;
 const PANEL_MEMORY_RELEASE_IDLE_MS = 60_000;
 const TASK_FALLBACK_REFRESH_MS = 60_000;
 const TASK_CHANGE_DEBOUNCE_MS = 300;
+const SPEED_SOURCE_CHECK_MS = 10_000;
+const SPEED_VISIBLE_SOURCE_CHECK_MS = 3_000;
 const QUOTA_REFRESH_MS = 5 * 60_000;
 const QUOTA_CACHE_MAX_AGE_MS = 24 * 60 * 60_000;
 const CODEX_DISCOVERY_REFRESH_MS = 5 * 60_000;
@@ -143,7 +144,7 @@ const MENU_BAR_PLACEMENT_GRACE_MS = 4_000;
 const BACKGROUND_RECOVERY_STABILITY_MS = 30_000;
 const ACTIVE_DISCOVERY_WINDOW_MS = 5 * 60_000;
 const TRANSCRIPT_RUNNING_MAX_AGE_MS = 24 * 60 * 60_000;
-const APP_VERSION = "1.9.16";
+const APP_VERSION = "1.9.17";
 const APP_SESSION_STARTED_AT = Date.now();
 // Do not reuse the pre-release bundle identities below. macOS 26 Control
 // Center persists per-status-item state by bundle identity, including state
@@ -232,6 +233,12 @@ let panelReportedHeight = 1;
 let panelRendererReady = false;
 let panelClockTimer = null;
 let speedDisplayTimer = null;
+let speedSourceCheckTimer = null;
+let speedSourceCheckInFlight = false;
+let systemSleeping = false;
+let screenLocked = false;
+let speedSourceCheckCount = 0;
+let lastSpeedSourceCheck = null;
 let panelHiddenSince = null;
 let panelSnapshotJSON = null;
 let panelPresentationID = 0;
@@ -253,6 +260,10 @@ let codexExecutablePath = null;
 let refreshingTasks = false;
 let taskRefreshTimer = null;
 let taskRefreshQueued = false;
+let usageTimer = null;
+let usageDueAt = 0;
+let usageInFlight = false;
+let usageNeedsRecheck = false;
 let refreshingQuota = false;
 let quotaRefreshQueued = false;
 let quotaRefreshDebounceTimer = null;
@@ -284,12 +295,9 @@ let snapshot = {
     available: false,
     remainingPercent: null,
     timeRemainingPercent: null,
-    resetAt: null,
-    health: "neutral",
-    healthLabel: "待同步",
-    healthDescription: "额度或周期时间暂未同步",
-    healthProgress: null
+    resetAt: null
   },
+  usage: null,
   tasks: [],
   unreadCount: 0,
   unreadAvailable: false,
@@ -563,20 +571,14 @@ function copyFor(locale = effectiveLocale()) {
     trayQuota: "Quota",
     trayReset: "Reset",
     trayTasks: "Tasks",
-    quotaRemaining: "Quota remaining",
-    timeRemaining: "Time remaining",
+    quotaRemaining: "Weekly quota left",
+    timeRemaining: "Cycle time left",
     resetCountdown: "Reset in",
     taskProgress: "Task activity",
     unread: "Unread",
     running: "Running",
     completed: "Processed",
-    syncing: "Syncing",
-    health: {
-      healthy: ["Normal", "Quota use is within the selected pace"],
-      watch: ["Watch", "Quota use is ahead of the remaining time"],
-      critical: ["Quota alert", "Quota use has reached the alert line"],
-      neutral: ["Syncing", "Quota or time window is not available yet"]
-    }
+    syncing: "Syncing"
   } : {
     appName: APP_DISPLAY_NAME_ZH,
     settings: "打开设置…",
@@ -588,20 +590,14 @@ function copyFor(locale = effectiveLocale()) {
     trayQuota: "额度",
     trayReset: "重置",
     trayTasks: "任务",
-    quotaRemaining: "额度剩余",
-    timeRemaining: "时间剩余",
+    quotaRemaining: "周额度剩余",
+    timeRemaining: "周期时间剩余",
     resetCountdown: "重置倒计时",
     taskProgress: "任务进展",
     unread: "待查看",
     running: "进行中",
     completed: "已处理",
-    syncing: "待同步",
-    health: {
-      healthy: ["正常使用", "额度消耗仍在设定的正常范围内"],
-      watch: ["需留意", "额度消耗已经领先时间进度"],
-      critical: ["额度告警", "额度消耗已经达到告警线"],
-      neutral: ["待同步", "额度或周期时间暂未同步"]
-    }
+    syncing: "待同步"
   };
 }
 
@@ -633,7 +629,6 @@ function menuBarStatusSnapshot() {
 }
 
 function settingsSnapshot() {
-  const quota = snapshot.quota;
   const connection = connectionSummary(codexConnection, {
     locale: effectiveLocale(),
     discoveryFailures: settings.codexDiscoveryFailures
@@ -649,47 +644,8 @@ function settingsSnapshot() {
       ...connection,
       lastSuccessfulSyncAt
     },
-    loginItem: loginItemStatus(app),
-    quotaHealth: {
-      available: quota.available,
-      state: quota.health,
-      quotaRemainingPercent: quota.remainingPercent,
-      timeRemainingPercent: quota.timeRemainingPercent,
-      usedPercent: quota.usedPercent,
-      timeUsedPercent: Number.isFinite(quota.timeRemainingPercent)
-        ? 100 - quota.timeRemainingPercent
-        : null,
-      windowMinutes: quota.windowMinutes,
-      cycleDays: quota.cycleDays,
-      elapsedDays: quota.elapsedDays,
-      currentDayEnd: quota.currentDayEnd,
-      usedEquivalentDays: quota.usedEquivalentDays,
-      leadDays: quota.leadDays
-    }
+    loginItem: loginItemStatus(app)
   };
-}
-
-function quotaHealthCalculationDescription(quota) {
-  if (
-    !quota.available
-    || !Number.isFinite(quota.usedPercent)
-    || !Number.isFinite(quota.timeRemainingPercent)
-  ) {
-    return copyFor().health.neutral[1];
-  }
-  const leadDays = Math.round(Number(quota.leadDays || 0) * 100) / 100;
-  if (effectiveLocale() === "en") {
-    return leadDays > 0
-      ? `Usage is ${leadDays} quota days ahead of the time pace.`
-      : leadDays < 0
-        ? `Usage is ${Math.abs(leadDays)} quota days behind the time pace.`
-        : "Usage is exactly on the time pace.";
-  }
-  return leadDays > 0
-    ? `当前额度消耗领先时间进度 ${leadDays} 天。`
-    : leadDays < 0
-      ? `当前额度消耗落后时间进度 ${Math.abs(leadDays)} 天。`
-      : "当前额度消耗与时间进度一致。";
 }
 
 function sendSettingsSnapshot() {
@@ -899,8 +855,7 @@ function handleLeave() {
 
 function estimatedPanelHeight() {
   const rows = Math.min(snapshot.tasks.length, 3);
-  if (rows === 0) return 127;
-  return Math.min(128 + rows * 94, PANEL_MAX_HEIGHT);
+  return Math.min(225 + rows * 104, PANEL_MAX_HEIGHT);
 }
 
 function calculatePanelBounds(height, anchor = panelAnchor || { type: "dot" }) {
@@ -908,19 +863,20 @@ function calculatePanelBounds(height, anchor = panelAnchor || { type: "dot" }) {
     const point = anchor.point || screen.getCursorScreenPoint();
     const display = screen.getDisplayNearestPoint(point);
     const area = display.workArea;
+    const width = Math.min(PANEL_WIDTH, area.width);
     const x = Math.max(
       area.x,
       Math.min(
-        Math.round(point.x - PANEL_WIDTH / 2),
-        area.x + area.width - PANEL_WIDTH
+        Math.round(point.x - width / 2),
+        area.x + area.width - width
       )
     );
-    panelArrowX = Math.max(14, Math.min(PANEL_WIDTH - 14, point.x - x));
+    panelArrowX = Math.max(14, Math.min(width - 14, point.x - x));
     return {
       x,
       y: area.y + PANEL_GAP,
-      width: PANEL_WIDTH,
-      height: Math.min(height, area.height),
+      width,
+      height: Math.min(height, area.height - PANEL_GAP),
       direction: "down"
     };
   }
@@ -931,6 +887,8 @@ function calculatePanelBounds(height, anchor = panelAnchor || { type: "dot" }) {
     y: dotBounds.y + dotBounds.height / 2
   });
   const area = display.workArea;
+  const width = Math.min(PANEL_WIDTH, area.width);
+  height = Math.min(height, area.height);
   const centerX = dotBounds.x + dotBounds.width / 2;
   const centerY = dotBounds.y + dotBounds.height / 2;
   const dotTop = centerY - DOT_SIZE / 2;
@@ -940,17 +898,17 @@ function calculatePanelBounds(height, anchor = panelAnchor || { type: "dot" }) {
   const direction = (
     spaceBottom >= height + PANEL_GAP || spaceBottom >= spaceTop
   ) ? "down" : "up";
-  const desiredX = Math.round(centerX - PANEL_WIDTH / 2);
+  const desiredX = Math.round(centerX - width / 2);
   const x = Math.max(
     area.x,
-    Math.min(desiredX, area.x + area.width - PANEL_WIDTH)
+    Math.min(desiredX, area.x + area.width - width)
   );
   const desiredY = direction === "down"
     ? Math.round(dotBottom + PANEL_GAP)
     : Math.round(dotTop - PANEL_GAP - height);
   const y = Math.max(area.y, Math.min(desiredY, area.y + area.height - height));
-  panelArrowX = Math.max(14, Math.min(PANEL_WIDTH - 14, centerX - x));
-  return { x, y, width: PANEL_WIDTH, height, direction };
+  panelArrowX = Math.max(14, Math.min(width - 14, centerX - x));
+  return { x, y, width, height, direction };
 }
 
 function preparePanel() {
@@ -1058,6 +1016,7 @@ function showPreparedPanel(message) {
   panelWindow.setOpacity(1);
   panelWindow.showInactive();
   scheduleSpeedDisplay();
+  scheduleSpeedSourceCheck();
   if (panelOpenStartedAt !== null) {
     panelLastOpenLatencyMs = Date.now() - panelOpenStartedAt;
   }
@@ -1125,6 +1084,7 @@ function closePanel() {
   panelAnchor = null;
   panelOpenStartedAt = null;
   panelWindow.hide();
+  scheduleSpeedSourceCheck();
   panelWindow.setOpacity(0);
   panelHiddenSince = Date.now();
   panelPresentationSentKey = null;
@@ -1148,6 +1108,7 @@ function destroyPanel() {
   clearHoverCloseTimer();
   clearPanelClockTimer();
   const win = panelWindow;
+  const hadPanelRequest = Boolean(panelAnchor);
   panelWindow = null;
   panelAnchor = null;
   panelRendererReady = false;
@@ -1156,6 +1117,7 @@ function destroyPanel() {
   panelPresentationSentKey = null;
   panelOpenStartedAt = null;
   if (win && !win.isDestroyed()) win.destroy();
+  if (hadPanelRequest) scheduleSpeedSourceCheck();
   if (!quitting) writeMenuBarRuntime();
 }
 
@@ -1255,7 +1217,7 @@ function trayIcon(mode = "full") {
 }
 
 function menuBarStatePayload(copy) {
-  const quota = snapshot.quota;
+  const quota = quotaForDisplay();
   return {
     appName: copy.appName,
     quotaLine: formatTrayQuotaLine({
@@ -1719,9 +1681,28 @@ function startMenuBarLifecycleMonitoring() {
   const recheckAfterWake = (reason) => {
     recheck(reason, 250);
     scheduleQuotaRefresh(500, reason);
+    if (!systemSleeping && !screenLocked) scheduleTaskRefresh(0, reason);
   };
-  powerMonitor.on("resume", () => recheckAfterWake("system-resume"));
-  powerMonitor.on("unlock-screen", () => recheckAfterWake("screen-unlock"));
+  powerMonitor.on("suspend", () => {
+    systemSleeping = true;
+    scheduleUsageRefresh();
+    scheduleSpeedSourceCheck();
+    scheduleSpeedDisplay();
+  });
+  powerMonitor.on("lock-screen", () => {
+    screenLocked = true;
+    scheduleUsageRefresh();
+    scheduleSpeedSourceCheck();
+    scheduleSpeedDisplay();
+  });
+  powerMonitor.on("resume", () => {
+    systemSleeping = false;
+    recheckAfterWake("system-resume");
+  });
+  powerMonitor.on("unlock-screen", () => {
+    screenLocked = false;
+    recheckAfterWake("screen-unlock");
+  });
   powerMonitor.on(
     "user-did-become-active",
     () => recheck("login-session-active", 250)
@@ -1834,6 +1815,10 @@ function applyCodexConnection(nextConnection, { forceRefresh = false } = {}) {
   stopTaskSourceWatchers();
   taskDataClient?.stop();
   taskDataClient = null;
+  snapshot.usage = null;
+  clearTimeout(usageTimer);
+  usageTimer = null;
+  usageDueAt = 0;
   quotaDataClient?.stop();
   quotaDataClient = null;
   runtimeStatusClient?.stop();
@@ -1851,6 +1836,7 @@ function applyCodexConnection(nextConnection, { forceRefresh = false } = {}) {
   scheduleQuotaRefresh(0, "connection-changed");
   refreshTrayMenu();
   sendSettingsSnapshot();
+  sendPanelSnapshot();
   return settingsSnapshot();
 }
 
@@ -1937,9 +1923,6 @@ function updateSettings(patch) {
     "showMenuBarQuota",
     "tokenSpeedWindowSeconds",
     "notifyOnUnreadCompletion",
-    "quotaHealthMode",
-    "quotaHealthyLeadDays",
-    "quotaWarningLeadDays",
     "launchAtLogin",
     "onboardingCompleted"
   ];
@@ -1950,11 +1933,6 @@ function updateSettings(patch) {
   const previous = settings;
   persistSettings({ ...settings, ...update });
   const startupChanged = previous.launchAtLogin !== settings.launchAtLogin;
-  const healthThresholdsChanged = (
-    previous.quotaHealthMode !== settings.quotaHealthMode
-    || previous.quotaHealthyLeadDays !== settings.quotaHealthyLeadDays
-    || previous.quotaWarningLeadDays !== settings.quotaWarningLeadDays
-  );
   const localeChanged = previous.locale !== settings.locale;
   const notificationsChanged = (
     previous.notifyOnUnreadCompletion !== settings.notifyOnUnreadCompletion
@@ -1980,7 +1958,6 @@ function updateSettings(patch) {
   }
   if (dotWindow && !dotWindow.isDestroyed()) applyWindowPreferences(dotWindow);
   if (panelWindow && !panelWindow.isDestroyed()) applyWindowPreferences(panelWindow);
-  if (healthThresholdsChanged) refreshSnapshotQuotaHealth();
   ensureDesktopWidget();
   refreshTrayMenu();
   sendSettingsSnapshot();
@@ -2630,6 +2607,7 @@ function ensureTaskDataClient() {
     taskDataClient = new TaskDataClient({
       codexHome,
       globalStatePath,
+      usageCachePath: path.join(path.dirname(SETTINGS_PATH), "token-usage-v1.json"),
       resourcesPath: taskDataWorkerResourcesPath()
     });
   }
@@ -2762,6 +2740,14 @@ function resourceDiagnostics() {
       lastDecision: lastCompletionNotificationDecision
     },
     taskPanel: panelDiagnostics(),
+    tokenSpeed: {
+      sourceCheckIntervalMs: speedSourceCheckIntervalMs(),
+      sourceCheckPending: speedSourceCheckTimer !== null,
+      sourceCheckInFlight: speedSourceCheckInFlight,
+      paused: systemSleeping || screenLocked,
+      sourceCheckCount: speedSourceCheckCount,
+      lastSourceCheck: lastSpeedSourceCheck
+    },
     process: {
       rssBytes: memory.rss,
       heapUsedBytes: memory.heapUsed,
@@ -2804,7 +2790,7 @@ async function refreshTasks() {
     lastTaskQueryMode = result.queryMode;
     lastTaskChangedRowCount = result.changedRowCount;
     lastTranscriptCacheSize = result.transcriptCacheSize;
-    if (result.rateLimits && !snapshot.quota.available) {
+    if (result.rateLimits && !quotaForDisplay().available) {
       applyQuotaRateLimits(result.rateLimits, {
         source: "legacy-local-cache",
         sampledAt: result.rateLimitsAt || Date.now(),
@@ -2918,11 +2904,13 @@ async function refreshTasks() {
     void runtimeStatusClient?.refreshCandidates(candidateIds);
     persistResourceDiagnostics();
     if (result.speedBackfillPending) taskRefreshQueued = true;
+    scheduleUsageRefresh(0, true);
   } catch {
     // Keep the last known snapshot. The low-frequency fallback will retry,
     // while Codex IPC and file watchers can schedule an earlier refresh.
   } finally {
     refreshingTasks = false;
+    scheduleSpeedSourceCheck();
     if (taskRefreshQueued) {
       taskRefreshQueued = false;
       scheduleTaskRefresh(TASK_CHANGE_DEBOUNCE_MS, "queued");
@@ -2943,6 +2931,58 @@ function scheduleTaskRefresh(
     void refreshTasks();
   }, Math.max(0, delay));
   taskRefreshTimer.unref?.();
+}
+
+function scheduleUsageRefresh(delay = 0, recheck = false) {
+  usageNeedsRecheck ||= recheck;
+  if (quitting || systemSleeping || screenLocked) {
+    clearTimeout(usageTimer);
+    usageTimer = null;
+    usageDueAt = 0;
+    return;
+  }
+  if (!taskDataClient || usageInFlight) return;
+  const dueAt = Date.now() + delay;
+  if (usageTimer && usageDueAt <= dueAt) return;
+  clearTimeout(usageTimer);
+  usageDueAt = dueAt;
+  usageTimer = setTimeout(async () => {
+    usageTimer = null;
+    usageDueAt = 0;
+    const client = taskDataClient;
+    if (!client || quitting || systemSleeping || screenLocked) return;
+    const verifySources = usageNeedsRecheck;
+    usageNeedsRecheck = false;
+    usageInFlight = true;
+    let nextDelay = null;
+    try {
+      const ids = snapshot.tasks.map(task => task.id);
+      const result = await client.usage(ids, verifySources);
+      if (client !== taskDataClient || quitting || systemSleeping || screenLocked) return;
+      const next = { week: result.week, day: result.day, sessions: result.sessions };
+      if (JSON.stringify(next) !== JSON.stringify(snapshot.usage)) {
+        snapshot.usage = next;
+        sendPanelSnapshot();
+      }
+      // Complete backfill in bounded turns; after it settles wake only at
+      // the next actual expiry or on an existing task-source refresh.
+      nextDelay = result.pending ? 150 : Number.isFinite(result.nextExpiry)
+        ? Math.max(25, result.nextExpiry - Date.now() + 10) : null;
+    } catch {
+      // Task/allowance snapshots stay usable; existing refresh retries.
+      if (client === taskDataClient && !snapshot.usage && !quitting && !systemSleeping && !screenLocked) {
+        const unavailable = { state: "unavailable", value: null };
+        snapshot.usage = { week: unavailable, day: unavailable,
+          sessions: Object.fromEntries(snapshot.tasks.map(task => [task.id, unavailable])) };
+        sendPanelSnapshot();
+      }
+    } finally {
+      usageInFlight = false;
+      if (usageNeedsRecheck) scheduleUsageRefresh(150, true);
+      else if (nextDelay !== null) scheduleUsageRefresh(nextDelay);
+    }
+  }, delay);
+  usageTimer.unref?.();
 }
 
 function dateFromEpoch(value) {
@@ -3029,43 +3069,14 @@ function parseQuota(result) {
   const timeRemainingPercent = Number.isFinite(remainingMinutes)
     ? Math.max(0, Math.min(100, remainingMinutes / durationMinutes * 100))
     : null;
-  return withQuotaHealth({
+  return {
     available: true,
     usedPercent,
     remainingPercent,
     timeRemainingPercent,
     windowMinutes: durationMinutes,
     resetAt: resetAt?.getTime() || null
-  });
-}
-
-function withQuotaHealth(quota) {
-  const health = evaluateQuotaHealth({
-    usedPercent: quota.usedPercent,
-    remainingPercent: quota.remainingPercent,
-    timeRemainingPercent: quota.timeRemainingPercent,
-    windowMinutes: quota.windowMinutes,
-    healthyLeadDays: settings.quotaHealthyLeadDays,
-    warningLeadDays: settings.quotaWarningLeadDays,
-    mode: settings.quotaHealthMode
-  });
-  return {
-    ...quota,
-    health: health.health,
-    healthLabel: health.label,
-    healthDescription: health.description,
-    cycleDays: health.cycleDays,
-    elapsedDays: health.elapsedDays,
-    currentDayEnd: health.currentDayEnd,
-    usedEquivalentDays: health.usedEquivalentDays,
-    leadDays: health.leadDays,
-    healthProgress: health.healthProgress
   };
-}
-
-function refreshSnapshotQuotaHealth() {
-  if (!snapshot.quota.available) return;
-  snapshot.quota = withQuotaHealth(snapshot.quota);
 }
 
 function resolveCodexExecutable() {
@@ -3095,12 +3106,19 @@ function formatCountdown(resetAt) {
   return parts.join(" ") || (english ? "under 1 min" : "不足 1 分钟");
 }
 
-function dotSnapshot() {
+function quotaForDisplay(now = Date.now()) {
   const quota = snapshot.quota;
+  if (!quota.available || !Number.isFinite(quota.resetAt) || quota.resetAt <= now) {
+    return { available: false, remainingPercent: null, timeRemainingPercent: null, resetAt: null };
+  }
+  const time = (quota.resetAt - now) / (quota.windowMinutes * 60_000) * 100;
+  return { ...quota, timeRemainingPercent: Number.isFinite(time) ? Math.min(100, Math.max(0, time)) : null };
+}
+
+function dotSnapshot() {
+  const quota = quotaForDisplay();
   const copy = copyFor();
   return {
-    health: quota.health,
-    healthProgress: quota.healthProgress,
     quotaAvailable: quota.available,
     quotaRemainingPercent: quota.remainingPercent || 0,
     timeRemainingPercent: quota.timeRemainingPercent || 0,
@@ -3115,22 +3133,22 @@ function dotSnapshot() {
 }
 
 function panelSnapshot() {
-  const quota = snapshot.quota;
+  const quota = quotaForDisplay();
   const speeds = speedPanel(snapshot.tasks, effectiveLocale(), Date.now(), settings.tokenSpeedWindowSeconds);
   const copy = copyFor();
-  const health = copy.health[quota.health] || copy.health.neutral;
   return {
     direction: panelDirection,
     arrowX: panelArrowX,
     locale: effectiveLocale(),
-    health: quota.health,
-    healthLabel: health[0],
-    healthDescription: health[1],
+    quotaPercent: quota.remainingPercent,
+    timePercent: quota.timeRemainingPercent,
     quotaValue: quota.available ? `${Math.round(quota.remainingPercent)}%` : "–",
     timeValue: quota.available && Number.isFinite(quota.timeRemainingPercent)
       ? `${Math.round(quota.timeRemainingPercent)}%`
       : "–",
-    resetValue: quota.available ? formatCountdown(quota.resetAt) : "待同步",
+    resetValue: quota.available ? formatCountdown(quota.resetAt) : "",
+    resetTitle: quota.available ? new Date(quota.resetAt).toLocaleString(effectiveLocale()) : "",
+    usage: { week: snapshot.usage?.week, day: snapshot.usage?.day },
     unreadCount: snapshot.unreadAvailable === false ? "–" : snapshot.unreadCount,
     runningCount: snapshot.runningCount,
     tokenSpeed: speeds.total,
@@ -3153,20 +3171,64 @@ function panelSnapshot() {
         : task.state === "running" ? copy.running
           : task.state === "unknown" ? copy.syncing : copy.completed,
       stateClass: task.state,
-      speed: speeds.rows[index]
+      speed: speeds.rows[index],
+      usage: snapshot.usage?.sessions?.[task.id]
     }))
   };
+}
+
+function speedSourceCheckIntervalMs() {
+  return panelWindow && !panelWindow.isDestroyed() && panelWindow.isVisible()
+    ? SPEED_VISIBLE_SOURCE_CHECK_MS : SPEED_SOURCE_CHECK_MS;
+}
+
+function scheduleSpeedSourceCheck() {
+  clearTimeout(speedSourceCheckTimer);
+  speedSourceCheckTimer = null;
+  if (quitting || systemSleeping || screenLocked || speedSourceCheckInFlight
+      || !snapshot.tasks.some(task => task.state === "running")) return;
+  // File events already update hidden snapshots. Only a quiet active period
+  // needs a safety check; each normal refresh postpones this one-shot timer.
+  speedSourceCheckTimer = setTimeout(async () => {
+    speedSourceCheckTimer = null;
+    if (quitting || systemSleeping || screenLocked) return;
+    const ids = snapshot.tasks.filter(task => task.state === "running").map(task => task.id);
+    if (!ids.length) return;
+    if (refreshingTasks || taskRefreshTimer) {
+      scheduleSpeedSourceCheck();
+      return;
+    }
+    const client = taskDataClient;
+    if (!client) return;
+    speedSourceCheckInFlight = true;
+    try {
+      const result = await client.checkActive(ids);
+      if (quitting || systemSleeping || screenLocked || client !== taskDataClient) return;
+      speedSourceCheckCount += 1;
+      lastSpeedSourceCheck = { ...result, checkedAt: Date.now() };
+      if (result.changed) scheduleTaskRefresh(0, "speed-source-check");
+    } catch {
+      // Keep cached samples and retry on the next bounded check or source
+      // event. Opening a panel never waits for a worker/recovery round trip.
+    } finally {
+      speedSourceCheckInFlight = false;
+      scheduleSpeedSourceCheck();
+    }
+  }, speedSourceCheckIntervalMs());
+  speedSourceCheckTimer.unref?.();
 }
 
 function scheduleSpeedDisplay() {
   clearTimeout(speedDisplayTimer);
   speedDisplayTimer = null;
-  if (quitting || !panelWindow || panelWindow.isDestroyed() || !panelWindow.isVisible()
-      || !snapshot.tasks.some(task => task.state === "running")) return;
+  if (quitting || systemSleeping || screenLocked
+      || !panelWindow || panelWindow.isDestroyed() || !panelWindow.isVisible()) return;
+  const delay = nextSpeedUpdateDelay(snapshot.tasks, Date.now(), settings.tokenSpeedWindowSeconds);
+  if (delay === null) return;
   speedDisplayTimer = setTimeout(() => {
     speedDisplayTimer = null;
     sendPanelSnapshot();
-  }, 1000);
+  }, delay);
   speedDisplayTimer.unref?.();
 }
 
@@ -3201,12 +3263,14 @@ function schedulePanelClockUpdate() {
     ? snapshot.quota.resetAt - Date.now()
     : 0;
   if (!panelWindow || panelWindow.isDestroyed() || !Number.isFinite(remaining)
-      || remaining <= 30_000) return;
+      || remaining <= 0) return;
   // formatCountdown rounds minutes. Update at its next actual text boundary,
   // at most once a minute, without polling Codex or running hidden frames.
-  const delay = ((remaining - 30_000) % 60_000 + 60_000) % 60_000 + 20;
+  const delay = Math.min(remaining, ((remaining - 30_000) % 60_000 + 60_000) % 60_000) + 20;
   panelClockTimer = setTimeout(() => {
     panelClockTimer = null;
+    sendDotSnapshot();
+    if (!quotaForDisplay().available) refreshTrayMenu();
     sendPanelSnapshot();
   }, delay);
   panelClockTimer.unref();
@@ -3504,6 +3568,9 @@ app.on("window-all-closed", (event) => {
 
 app.on("before-quit", () => {
   quitting = true;
+  scheduleUsageRefresh();
+  clearTimeout(speedSourceCheckTimer);
+  speedSourceCheckTimer = null;
   completionForegroundRevision += 1;
   completionForegroundMonitor?.stop();
   completionForegroundMonitor = null;

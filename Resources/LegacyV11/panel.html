@@ -19,6 +19,7 @@
       let visible = false;
       let frameRequest = null;
       let presentationID = 0;
+      let lastMeasuredHeight = null;
       const taskRows = new Map();
       const diagnostics = { builds: 0, updates: 0, measurements: 0, firstFrameAt: null };
       window.panelRendererDiagnostics = () => ({ ...diagnostics, presentationID });
@@ -38,21 +39,60 @@
         if (element.textContent !== next) element.textContent = next;
       };
 
-      const buildInfoCard = (label, value, className, options = {}) => {
-        const { compact = false, badge, badgeDescription } = options;
+      const buildInfoCard = (label, className) => {
         const card = createElement("div", `status-info-card ${className}`);
-        const heading = createElement("div", "status-info-heading");
-        heading.append(createElement("span", "status-info-label", label));
-        if (badge) {
-          const healthBadge = createElement("span", "status-health-badge", badge);
-          if (badgeDescription) healthBadge.title = badgeDescription;
-          heading.append(healthBadge);
+        const values = createElement("div", "status-info-values");
+        values.append(createElement("strong", "status-info-value"));
+        if (className === "is-time") {
+          card.tabIndex = 0;
+          values.append(createElement("span", "status-reset-value"));
         }
+        const bar = createElement("div", "status-info-track");
+        bar.setAttribute("aria-hidden", "true");
+        bar.append(createElement("span", "status-info-fill"));
         card.append(
-          heading,
-          createElement("strong", `status-info-value${compact ? " is-compact" : ""}`, value)
+          createElement("span", "status-info-label", label), values, bar
         );
         return card;
+      };
+
+      const usageCopy = (en) => en ? {
+        title: "Token usage and speed", scope: "Local Codex",
+        scopeDetail: "Main sessions recorded on this device; other devices and child sessions are excluded.",
+        week: "Last 7 days", day: "Last 24 hours", rate: "Current speed",
+        loading: "Calculating", unavailable: "Unavailable", lifetime: "Total",
+      } : {
+        title: "Token 用量与速率", scope: "本机 Codex",
+        scopeDetail: "仅统计本机记录的主会话，不含其他设备和子会话。",
+        week: "最近 7 天", day: "最近 24 小时", rate: "当前速率",
+        loading: "统计中", unavailable: "不可用", lifetime: "累计",
+      };
+      const compactCount = (value) => {
+        for (const [unit, base] of [["T", 1e12], ["B", 1e9], ["M", 1e6], ["K", 1e3]]) {
+          if (value >= base) return `${(value / base).toFixed(1)}${unit}`;
+        }
+        return value.toFixed(1);
+      };
+      const formatUsage = (entry, copy, locale) => {
+        const state = entry?.state || "loading";
+        const known = Number.isSafeInteger(entry?.value) && entry.value >= 0;
+        if (!known) {
+          const placeholder = state === "loading" ? copy.loading : copy.unavailable;
+          return { number: placeholder, unit: "", full: placeholder, text: placeholder };
+        }
+        const number = compactCount(entry.value);
+        return { number, unit: "Token", full: `${entry.value.toLocaleString(locale)} Token`, text: `${number} Token` };
+      };
+      const buildUsageMetric = (isRate) => {
+        const element = createElement("div", "status-usage-metric");
+        element.tabIndex = 0;
+        const label = createElement("div", "status-usage-label");
+        const values = createElement("strong", isRate ? "status-usage-values status-speed-value" : "status-usage-values");
+        const number = createElement("span", "status-usage-number");
+        const unit = createElement("span", "status-usage-unit");
+        values.append(number, unit);
+        element.append(label, values);
+        return { element, label, number, unit };
       };
 
       const buildTaskMetric = (value, label, className, accessibleLabel) => {
@@ -82,7 +122,7 @@
         );
         const update = createElement("div", "status-task-update");
         update.append(createElement("span", "status-task-update-text", task.progress));
-        row.append(headline, update);
+        row.append(headline, createElement("div", "status-task-usage"), update);
         return row;
       };
 
@@ -116,8 +156,8 @@
 
       window.renderTaskPanel = (state) => {
         const copy = state.copy || {
-          quotaRemaining: "额度剩余",
-          timeRemaining: "时间剩余",
+          quotaRemaining: "周额度剩余",
+          timeRemaining: "周期时间剩余",
           resetCountdown: "重置倒计时",
           taskProgress: "任务进展",
           unread: "待查看",
@@ -125,6 +165,8 @@
           completed: "已处理"
         };
         document.documentElement.lang = state.locale || "zh-CN";
+        const en = state.locale === "en";
+        const usage = usageCopy(en);
         document.title = copy.taskProgress;
         if (!view) {
           const frame = createElement("div", "status-popover-frame is-down");
@@ -132,24 +174,25 @@
           const content = createElement("div", "status-popover-content");
           const grid = createElement("div", "status-info-grid");
           const cards = [
-            buildInfoCard(copy.quotaRemaining, state.quotaValue, "is-quota", {
-              badge: state.healthLabel || " ",
-              badgeDescription: state.healthDescription
-            }),
-            buildInfoCard(copy.timeRemaining, state.timeValue, "is-time"),
-            buildInfoCard(copy.resetCountdown, state.resetValue, "is-reset")
+            buildInfoCard(copy.quotaRemaining, "is-quota"),
+            buildInfoCard(copy.timeRemaining, "is-time")
           ];
           grid.append(...cards);
           content.append(grid);
-          const speed = createElement("strong", "status-speed-value");
-          speed.tabIndex = 0;
+          const usageSection = createElement("section", "status-usage-section");
+          const usageHeading = createElement("div", "status-usage-heading");
+          const usageTitle = createElement("h2", "status-popover-title");
+          const usageScope = createElement("span", "status-usage-scope");
+          usageHeading.append(usageTitle, usageScope);
+          const usageGrid = createElement("div", "status-usage-grid");
+          const usageMetrics = [buildUsageMetric(false), buildUsageMetric(false), buildUsageMetric(true)];
+          usageGrid.append(...usageMetrics.map(metric => metric.element));
+          usageSection.append(usageHeading, usageGrid);
+          content.append(usageSection);
           const section = createElement("div", "status-task-section");
           const header = createElement("div", "status-popover-header");
           const titleWrap = createElement("div", "status-popover-title-wrap");
-          titleWrap.append(
-            createElement("span", "status-section-dot"),
-            createElement("div", "status-popover-title", copy.taskProgress)
-          );
+          titleWrap.append(createElement("div", "status-popover-title", copy.taskProgress));
           const summary = createElement("div", "status-task-summary");
           summary.setAttribute(
             "aria-label",
@@ -159,7 +202,7 @@
             buildTaskMetric(state.unreadCount, copy.unread, "is-unread", copy.unread),
             buildTaskMetric(state.runningCount, copy.running, "is-running", copy.running)
           );
-          header.append(titleWrap, speed, summary);
+          header.append(titleWrap, summary);
           section.append(header);
           const scroll = createElement("div", "status-task-scroll");
           const list = createElement("div", "status-task-list");
@@ -173,8 +216,18 @@
           scroll.append(list, scrollbar);
           frame.append(content);
           root.append(frame);
+          if (typeof ResizeObserver !== "undefined") {
+            new ResizeObserver(() => {
+              const height = Math.ceil(frame.getBoundingClientRect().height);
+              const renderRevision = Number(root.dataset.renderRevision);
+              if (height === lastMeasuredHeight || !renderRevision) return;
+              lastMeasuredHeight = height;
+              diagnostics.measurements += 1;
+              send({ type: "resize", height, renderRevision });
+            }).observe(frame);
+          }
           view = {
-            frame, content, cards, section, summary, scroll, list, speed,
+            frame, content, cards, section, summary, scroll, list, usageTitle, usageScope, usageMetrics,
             title: titleWrap.querySelector(".status-popover-title"),
             metrics: [...summary.children]
           };
@@ -184,23 +237,39 @@
         const { frame, content, cards, section, summary, scroll, list, metrics } = view;
         if (list.parentElement) taskScrollTop = list.scrollTop;
         const hasSection = true;
-        content.className = `status-popover-content is-${state.health || "neutral"}`;
-        const speed = state.tokenSpeed || { label: state.locale === "en" ? "Live throughput" : "整体实时有效速率", text: "— tok/s", detail: "", description: "" };
-        setText(view.speed, speed.text);
-        view.speed.title = speed.description;
-        view.speed.setAttribute("aria-label", `${speed.label} ${speed.text}。${speed.detail}。${speed.description}`);
-        const labels = [copy.quotaRemaining, copy.timeRemaining, copy.resetCountdown];
-        const values = [state.quotaValue, state.timeValue, state.resetValue];
+        const speed = state.tokenSpeed || { label: state.locale === "en" ? "Active task throughput" : "进行中任务速率", text: "— tok/s", detail: "", description: "" };
+        setText(view.usageTitle, usage.title);
+        setText(view.usageScope, usage.scope);
+        view.usageScope.title = usage.scopeDetail;
+        const usageLabels = [usage.week, usage.day, usage.rate];
+        const usageEntries = [state.usage?.week, state.usage?.day];
+        view.usageMetrics.forEach((metric, index) => {
+          const isRate = index === 2;
+          const formatted = isRate
+            ? { number: speed.text.replace(/ tok\/s$/, ""), unit: "tok/s", full: speed.text }
+            : formatUsage(usageEntries[index], usage, state.locale || "zh-CN");
+          setText(metric.label, usageLabels[index]);
+          setText(metric.number, formatted.number);
+          setText(metric.unit, formatted.unit ? ` ${formatted.unit}` : "");
+          metric.number.classList.toggle("is-compact", formatted.number.length > 6 || !/^[0-9—]/.test(formatted.number));
+          const detail = isRate ? [speed.description, speed.detail].filter(Boolean).join(" ") : usage.scopeDetail;
+          metric.element.title = `${usageLabels[index]}: ${formatted.full}. ${detail}`;
+          metric.element.setAttribute("aria-label", metric.element.title);
+        });
+        const labels = [copy.quotaRemaining, copy.timeRemaining];
+        const values = [state.quotaValue, state.timeValue];
+        const percentages = [state.quotaPercent, state.timePercent];
         cards.forEach((card, index) => {
           setText(card.querySelector(".status-info-label"), labels[index]);
-          const value = card.querySelector(".status-info-value");
-          setText(value, values[index]);
-          value.classList.toggle("is-compact", index === 2 && String(state.resetValue).length > 6);
+          setText(card.querySelector(".status-info-value"), values[index] || "—");
+          const pct = percentages[index];
+          card.querySelector(".status-info-fill").style.width = Number.isFinite(pct)
+            ? `${clamp(pct, 0, 100)}%` : "0%";
         });
-        const badge = cards[0].querySelector(".status-health-badge");
-        setText(badge, state.healthLabel);
-        badge.title = state.healthDescription || "";
-        badge.hidden = !state.healthLabel;
+        const reset = state.resetValue ? (en ? `Resets in ${state.resetValue}` : `${state.resetValue}后重置`) : (copy.syncing || (en ? "Syncing" : "待同步"));
+        setText(cards[1].querySelector(".status-reset-value"), reset);
+        cards[1].title = state.resetTitle ? `${copy.resetCountdown}: ${state.resetTitle}` : reset;
+        cards[1].setAttribute("aria-label", `${copy.timeRemaining} ${state.timeValue || "—"}. ${reset}. ${state.resetTitle || ""}`);
         setText(view.title, copy.taskProgress);
         summary.setAttribute("aria-label", `${state.unreadCount} ${copy.unread}，${state.runningCount} ${copy.running}`);
         [state.unreadCount, state.runningCount].forEach((count, index) => {
@@ -229,17 +298,25 @@
           const phase = row.querySelector(".status-task-phase");
           phase.className = `status-task-phase is-${task.stateClass}`;
           setText(phase, task.stateLabel);
-          const rate = task.speed || { label: task.stateClass === "running" ? "实时" : "平均", text: "— tok/s", status: "", description: "" };
-          setText(row.querySelector(".status-task-speed-value"), `${rate.label} ${rate.text}`);
-          row.querySelector(".status-task-speed-value").title = `${rate.description}${rate.status ? ` ${rate.status}` : ""}`;
-          row.setAttribute("aria-label", `${task.stateLabel}：${task.title}。${task.progress}。${rate.label} ${rate.text} ${rate.status}`);
+          const rate = task.speed || { label: task.stateClass === "running" ? "" : "平均", text: "— tok/s", status: "", description: "" };
+          const speed = row.querySelector(".status-task-speed-value");
+          speed.className = `status-task-speed-value is-${task.stateClass}`;
+          const rateText = rate.kind === "live" && rate.value === null
+            ? (state.locale === "en" ? "Pending" : "待上报") : [rate.label, rate.text].filter(Boolean).join(" ");
+          setText(speed, rateText);
+          speed.title = `${rate.description}${rate.status ? ` ${rate.status}` : ""}`;
+          const lifetime = formatUsage(task.usage, usage, state.locale || "zh-CN");
+          const lifetimeNode = row.querySelector(".status-task-usage");
+          setText(lifetimeNode, `${usage.lifetime} ${lifetime.text}`);
+          lifetimeNode.title = `${usage.lifetime} ${lifetime.full}`;
+          row.setAttribute("aria-label", `${task.stateLabel}：${task.title}。${rateText}。${lifetimeNode.title}。${task.progress}`);
           if (list.children[index] !== row) list.insertBefore(row, list.children[index] || null);
         });
         const rows = Math.min(state.tasks.length, MAX_VISIBLE_TASK_ROWS);
         const layoutKey = JSON.stringify([state.locale, hasSection, rows]);
         const layoutChanged = layoutKey !== lastLayoutKey;
         if (layoutChanged) {
-          list.style.setProperty("--task-list-height", `${rows * 88 + Math.max(0, rows - 1) * 6}px`);
+          list.style.setProperty("--task-list-height", `${rows * 98 + Math.max(0, rows - 1) * 6}px`);
         }
         root.dataset.renderRevision = String(state.renderRevision);
         diagnostics.updates += 1;
@@ -256,9 +333,10 @@
           diagnostics.measurements += 1;
           // Synchronous layout only for structural changes, never a hidden
           // animation frame or a repeated-open size round trip.
+          lastMeasuredHeight = Math.ceil(frame.getBoundingClientRect().height);
           send({
             type: "resize",
-            height: Math.ceil(frame.getBoundingClientRect().height),
+            height: lastMeasuredHeight,
             renderRevision: state.renderRevision
           });
         } else {

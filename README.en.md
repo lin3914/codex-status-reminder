@@ -21,12 +21,15 @@ Install and sign in to Codex first. Open the DMG and drag the app to Application
 - Left-click the menu-bar item to toggle the complete task panel.
 - Right-click for settings. Hover does not open the panel.
 - The optional desktop widget expands on hover, can be dragged, and stays above ordinary windows. It is hidden in full-screen apps.
-- Green means stopped and unread, pale yellow means active, gray means stopped and viewed.
-- Overall and per-session rates sit immediately before their status tags, leaving the full-width, three-line progress text intact. Choose a 30-second, 1-minute or 5-minute live window in General settings; 30 seconds is the default. Ended sessions keep their latest complete turn average, including tools and waiting but excluding idle time between user messages.
-- Token usage is reported in batches and includes reasoning output. A missing sample shows `—`, not a retained historical rate. This is sampled throughput, not a per-token instantaneous stream.
+- Green means stopped and unread, orange means active, gray means stopped and viewed.
+- The panel shows neutral weekly quota and cycle-time cards, then the last 7 days, last 24 hours and current speed. The reset countdown is part of the cycle-time card. Quota-health thresholds and warning colors have been removed.
+- Per-session rates sit immediately before their status tags; cumulative Token usage sits below the title. Full-width, three-line progress text remains. Usage and speed show one decimal place, including trailing zeroes.
+- Choose a 30-second, 1-minute or 5-minute speed window in General settings; 30 seconds is the default. Ended sessions keep their latest complete turn average, including tools and waiting but excluding idle time between user messages. Long-turn history is recovered in bounded background batches.
+- Output usage includes reasoning and arrives in batches. Between reports, active tasks retain their latest trustworthy rate from the same turn; a task without one shows Pending. This is approximate reported throughput, not a per-token instantaneous stream. Only active tasks contribute to current total speed.
+- Token totals count input and output from local main sessions, including readable archives, not other devices or child sessions. The 24-hour window is included in the 7-day window. Missing records can undercount usage; an unavailable total is not displayed as zero.
+- Source changes update the cache; active tasks also get lightweight metadata checks every 10 seconds while the panel is closed and every 3 seconds while open. The local usage index avoids repeatedly reading full history and does not store conversation text.
 - Completion cards persist without a timeout, but opening or switching back to Codex dismisses the entire group. Switching away does not restore those old alerts. Clicking a card opens its conversation; the close button dismisses only that card. Dismissal does not mark any Codex conversation as read. Later background completions can still notify.
 - Cards use the standard floating window level. Newer notifications from other apps can appear above them, and background refreshes do not repeatedly raise our cards.
-- Quota health compares quota consumption with elapsed time. The default healthy lead is 12 hours; the default alert line is 24 hours. Both can be adjusted through the linked/custom modes.
 
 ## Build
 

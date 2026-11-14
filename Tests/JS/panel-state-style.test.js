@@ -26,29 +26,38 @@ const dotCSS = fs.readFileSync(
 assert.match(main, /completed:\s*"Processed"/);
 assert.match(main, /completed:\s*"已处理"/);
 assert.match(panel, /completed:\s*"已处理"/);
+assert.match(css, /--task-running:\s*#d4ac84;/);
+assert.match(css, /--task-unread:\s*#95b7a3;/);
+assert.match(css, /--task-completed:\s*#a5b1b9;/);
+assert.match(css, /--task-body-font-size:\s*10\.5px;/);
+for (const selector of ["status-task-speed-value", "status-task-phase", "status-task-update-text"]) {
+  assert.match(css, new RegExp("\\." + selector + "\\s*\\{[^}]*font-size:\\s*var\\(--task-body-font-size\\)"),
+    "速率、状态标签和进展正文必须共享同一个字号");
+}
+assert.match(css, /\.status-speed-value\s*\{[^}]*color:\s*var\(--task-running\);/);
 assert.match(
   css,
-  /\.status-task-metric\.is-unread\s*\{[\s\S]*?color:\s*#76e3aa;[\s\S]*?background:\s*rgba\(105,\s*238,\s*174,\s*0\.12\)/,
+  /\.status-task-metric\.is-unread\s*\{[\s\S]*?color:\s*var\(--task-unread\);[\s\S]*?background:\s*rgba\(149,\s*183,\s*163,\s*0\.05\)/,
   "待查看汇总必须使用绿色"
 );
 assert.match(
   css,
-  /\.status-task-metric\.is-running\s*\{[\s\S]*?color:\s*#ead47f;[\s\S]*?background:\s*rgba\(239,\s*217,\s*124,\s*0\.12\)/,
-  "进行中汇总必须使用浅黄色"
+  /\.status-task-metric\.is-running\s*\{[\s\S]*?color:\s*var\(--task-running\);[\s\S]*?background:\s*rgba\(212,\s*172,\s*132,\s*0\.07\)/,
+  "进行中汇总必须使用橙色"
 );
 assert.match(
   css,
-  /\.status-task-phase\.is-unread\s*\{[\s\S]*?color:\s*#76e3aa;[\s\S]*?background:\s*rgba\(105,\s*238,\s*174,\s*0\.12\)/,
+  /\.status-task-phase\.is-unread\s*\{[\s\S]*?color:\s*var\(--task-unread\);[\s\S]*?background:\s*rgba\(149,\s*183,\s*163,\s*0\.05\)/,
   "待查看状态标识必须使用绿色"
 );
 assert.match(
   css,
-  /\.status-task-phase\.is-running\s*\{[\s\S]*?color:\s*#ead47f;[\s\S]*?background:\s*rgba\(239,\s*217,\s*124,\s*0\.12\)/,
-  "进行中状态标识必须使用浅黄色"
+  /\.status-task-phase\.is-running\s*\{[\s\S]*?color:\s*var\(--task-running\);[\s\S]*?background:\s*rgba\(212,\s*172,\s*132,\s*0\.07\)/,
+  "进行中状态标识必须使用橙色"
 );
 assert.match(
   css,
-  /\.status-task-phase\.is-completed\s*\{[\s\S]*?color:\s*#b7c9d2;/,
+  /\.status-task-phase\.is-completed\s*\{[\s\S]*?color:\s*var\(--task-completed\);/,
   "已处理状态标识必须保留灰色色阶"
 );
 assert.match(dot, /class="status-dot-ring-track is-quota"[^>]*r="15\.5"/);
@@ -58,11 +67,8 @@ assert(
     < dot.indexOf('class="status-dot-ring-track is-time"'),
   "内环轨道必须先绘制，让外环覆盖共享边缘"
 );
-assert.match(
-  dot,
-  /track:\s*"--ring-track"/,
-  "健康度变化必须只改变额度进度色，不能重新引入分离的浅色轨道"
-);
+assert.doesNotMatch(dot, /healthProgress|applyHealthColors|healthPalettes/,
+  "额度环色不再受健康度影响，仍与外环共用轨道");
 assert.match(
   dotCSS,
   /--ring-track:\s*#a5dfe4/,

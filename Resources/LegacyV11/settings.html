@@ -127,74 +127,6 @@
         </div>
       </section>
 
-      <section class="settings-section" aria-labelledby="quota-health-title">
-        <h2 id="quota-health-title" data-copy="quotaHealth">额度健康度</h2>
-        <div class="settings-card quota-card">
-          <div class="quota-intro">
-            <strong data-copy="quotaExplanationTitle">额度比时间进度领先得越多，越需要提醒</strong>
-            <small data-copy="quotaExplanation">应用比较本周额度已用进度和本周时间已过进度。这里的小时数表示额度领先时间进度多久。</small>
-          </div>
-
-          <div class="quota-preset-grid" role="radiogroup" data-copy-aria="quotaHealth">
-            <button class="quota-preset" type="button" data-healthy="0.25" role="radio">
-              <strong data-copy="quota6">领先 6 小时</strong>
-              <small data-copy="quota6Description">12 小时进入告警</small>
-            </button>
-            <button class="quota-preset" type="button" data-healthy="0.5" role="radio">
-              <strong data-copy="quota12">领先 12 小时</strong>
-              <small data-copy="quota12Description">推荐 · 24 小时进入告警</small>
-            </button>
-            <button class="quota-preset" type="button" data-healthy="1" role="radio">
-              <strong data-copy="quota24">领先 24 小时</strong>
-              <small data-copy="quota24Description">48 小时进入告警</small>
-            </button>
-          </div>
-
-          <div class="quota-visual" role="img" data-copy-aria="quotaVisualLabel">
-            <div id="quota-track" class="quota-track">
-              <span class="quota-segment is-normal"></span>
-              <span class="quota-segment is-watch"></span>
-              <span class="quota-segment is-alert"></span>
-              <span id="healthy-marker" class="quota-marker is-normal"></span>
-              <span id="warning-marker" class="quota-marker is-alert"></span>
-            </div>
-            <div class="quota-state-labels">
-              <span><i class="state-dot is-normal"></i><b data-copy="normal">正常使用</b><small id="normal-range"></small></span>
-              <span><i class="state-dot is-watch"></i><b data-copy="watch">需留意</b><small id="watch-range"></small></span>
-              <span><i class="state-dot is-alert"></i><b data-copy="alert">额度告警</b><small id="alert-range"></small></span>
-            </div>
-          </div>
-
-          <p id="quota-rule-summary" class="quota-rule-summary"></p>
-          <button id="quota-custom-toggle" class="text-button" type="button" aria-expanded="false" data-copy="customizeQuota">自定义…</button>
-
-          <div id="quota-custom-settings" class="quota-custom-settings" hidden>
-            <label class="range-setting" for="quotaHealthyLeadDays">
-              <span>
-                <strong data-copy="normalLimit">正常上限</strong>
-                <small data-copy="normalLimitDescription">超过这个时长后进入“需留意”</small>
-              </span>
-              <output id="quotaHealthyLeadDaysValue"></output>
-              <input id="quotaHealthyLeadDays" type="range" min="0.25" max="3" step="0.25" value="0.5">
-            </label>
-            <label class="settings-row compact-row" for="custom-warning-enabled">
-              <span class="settings-copy">
-                <strong data-copy="customWarning">单独设置额度告警线</strong>
-                <small data-copy="customWarningDescription">关闭时，告警线自动为正常上限的 2 倍</small>
-              </span>
-              <input id="custom-warning-enabled" type="checkbox" role="switch">
-            </label>
-            <label id="warning-setting-row" class="select-setting" for="quotaWarningLeadDays" hidden>
-              <span>
-                <strong data-copy="warningPoint">额度告警起点</strong>
-                <small data-copy="warningPointDescription">达到这个时长后进入“额度告警”</small>
-              </span>
-              <select id="quotaWarningLeadDays"></select>
-            </label>
-          </div>
-        </div>
-      </section>
-
     </div>
   </main>
 
@@ -242,28 +174,6 @@
           notification: "显示任务完成提醒",
           notificationDescription: "Codex 在后台时提醒；打开 Codex 会撤下全部提醒，不改变未读状态",
           notificationDelivery: "提醒方式：应用内常驻卡片，不需要系统通知权限。",
-          quotaHealth: "额度健康度",
-          quotaExplanationTitle: "额度比时间进度领先得越多，越需要提醒",
-          quotaExplanation: "应用比较本周额度已用进度和本周时间已过进度。这里的小时数表示额度领先时间进度多久。",
-          quota6: "领先 6 小时",
-          quota6Description: "12 小时进入告警",
-          quota12: "领先 12 小时",
-          quota12Description: "推荐 · 24 小时进入告警",
-          quota24: "领先 24 小时",
-          quota24Description: "48 小时进入告警",
-          quotaVisualLabel: "正常使用、需留意和额度告警的区间",
-          normal: "正常使用",
-          watch: "需留意",
-          alert: "额度告警",
-          customizeQuota: "自定义…",
-          hideCustomization: "收起自定义",
-          normalLimit: "正常上限",
-          normalLimitDescription: "超过这个时长后进入“需留意”",
-          customWarning: "单独设置额度告警线",
-          customWarningDescription: "关闭时，告警线自动为正常上限的 2 倍",
-          warningPoint: "额度告警起点",
-          warningPointDescription: "达到这个时长后进入“额度告警”",
-          linkedRule: "超过 {healthy} 进入“需留意”，达到 {warning} 进入“额度告警”。",
           connectionUpdated: "Codex 连接已更新"
         },
         en: {
@@ -307,28 +217,6 @@
           notification: "Show task completion alerts",
           notificationDescription: "Notify while Codex is in the background; opening Codex dismisses all alerts without changing unread status",
           notificationDelivery: "Delivery: a persistent in-app card. No system notification permission is required.",
-          quotaHealth: "Quota health",
-          quotaExplanationTitle: "The farther quota runs ahead of time, the more attention it needs",
-          quotaExplanation: "The app compares weekly quota used with weekly time elapsed. Hours show how far quota usage is ahead of time.",
-          quota6: "6 hours ahead",
-          quota6Description: "Alert at 12 hours",
-          quota12: "12 hours ahead",
-          quota12Description: "Recommended · Alert at 24 hours",
-          quota24: "24 hours ahead",
-          quota24Description: "Alert at 48 hours",
-          quotaVisualLabel: "Normal, watch, and quota alert ranges",
-          normal: "Normal",
-          watch: "Watch",
-          alert: "Quota alert",
-          customizeQuota: "Customize…",
-          hideCustomization: "Hide customization",
-          normalLimit: "Normal limit",
-          normalLimitDescription: "Past this point, status changes to Watch",
-          customWarning: "Set the quota alert line separately",
-          customWarningDescription: "When off, the alert line is twice the normal limit",
-          warningPoint: "Quota alert point",
-          warningPointDescription: "At this point, status changes to Quota alert",
-          linkedRule: "Past {healthy}, status changes to Watch; at {warning}, it changes to Quota alert.",
           connectionUpdated: "Codex connection updated"
         }
       };
@@ -341,8 +229,6 @@
       ];
       const state = {
         settings: null,
-        quotaCustomOpen: false,
-        quotaInitialized: false,
         connectionDetailsOpen: false
       };
 
@@ -363,7 +249,7 @@
       function showInlineError(source) {
         clearInlineErrors();
         const host = source?.closest?.(
-          ".settings-row, .settings-select-row, .quota-card"
+          ".settings-row, .settings-select-row"
         );
         if (!host) return;
         const message = document.createElement("small");
@@ -385,14 +271,6 @@
           const value = next[element.dataset.copyAria];
           if (value) element.setAttribute("aria-label", value);
         }
-      }
-
-      function formatHours(days) {
-        const hours = Math.round(Number(days || 0) * 24);
-        if (state.settings?.effectiveLocale === "en") {
-          return hours % 24 === 0 ? `${hours / 24}d` : `${hours}h`;
-        }
-        return hours % 24 === 0 ? `${hours / 24} 天` : `${hours} 小时`;
       }
 
       function formatLastSync(value) {
@@ -445,69 +323,6 @@
         document.getElementById("menu-bar-warning").hidden = !hiddenBySystem;
       }
 
-      function renderQuota() {
-        const healthy = Number(state.settings.quotaHealthyLeadDays ?? 0.5);
-        const warning = Number(state.settings.quotaWarningLeadDays ?? healthy * 2);
-        const customWarning = state.settings.quotaHealthMode === "custom";
-        const presets = [0.25, 0.5, 1];
-        for (const button of document.querySelectorAll(".quota-preset")) {
-          const value = Number(button.dataset.healthy);
-          const selected = !customWarning && Math.abs(value - healthy) < 0.001;
-          button.classList.toggle("is-selected", selected);
-          button.setAttribute("aria-checked", String(selected));
-        }
-        if (
-          !state.quotaInitialized
-          && (
-            customWarning
-            || !presets.some((value) => Math.abs(value - healthy) < 0.001)
-          )
-        ) {
-          state.quotaCustomOpen = true;
-        }
-        state.quotaInitialized = true;
-        const custom = document.getElementById("quota-custom-settings");
-        custom.hidden = !state.quotaCustomOpen;
-        document.getElementById("quota-custom-toggle").textContent = state.quotaCustomOpen
-          ? language().hideCustomization
-          : language().customizeQuota;
-        document.getElementById("quota-custom-toggle").setAttribute(
-          "aria-expanded",
-          String(state.quotaCustomOpen)
-        );
-        const healthyInput = document.getElementById("quotaHealthyLeadDays");
-        healthyInput.value = String(healthy);
-        document.getElementById("quotaHealthyLeadDaysValue").textContent = formatHours(healthy);
-        document.getElementById("custom-warning-enabled").checked = customWarning;
-        document.getElementById("warning-setting-row").hidden = !customWarning;
-        const warningSelect = document.getElementById("quotaWarningLeadDays");
-        const options = [];
-        for (let value = healthy + 0.25; value <= 6.001; value += 0.25) {
-          const option = document.createElement("option");
-          option.value = String(Math.round(value * 4) / 4);
-          option.textContent = formatHours(value);
-          options.push(option);
-        }
-        warningSelect.replaceChildren(...options);
-        warningSelect.value = String(warning);
-        const visualMax = Math.max(warning * 1.25, healthy + 0.5, 1);
-        const healthyStop = Math.min(88, Math.max(12, healthy / visualMax * 100));
-        const warningStop = Math.min(94, Math.max(healthyStop + 8, warning / visualMax * 100));
-        const track = document.getElementById("quota-track");
-        track.style.setProperty("--healthy-stop", `${healthyStop}%`);
-        track.style.setProperty("--warning-stop", `${warningStop}%`);
-        document.getElementById("healthy-marker").style.left = `${healthyStop}%`;
-        const warningMarker = document.getElementById("warning-marker");
-        warningMarker.style.left = `${warningStop}%`;
-        warningMarker.classList.toggle("is-locked", !customWarning);
-        document.getElementById("normal-range").textContent = `≤ ${formatHours(healthy)}`;
-        document.getElementById("watch-range").textContent = `> ${formatHours(healthy)} · < ${formatHours(warning)}`;
-        document.getElementById("alert-range").textContent = `≥ ${formatHours(warning)}`;
-        document.getElementById("quota-rule-summary").textContent = language().linkedRule
-          .replace("{healthy}", formatHours(healthy))
-          .replace("{warning}", formatHours(warning));
-      }
-
       function render(next) {
         state.settings = next;
         applyCopy();
@@ -520,7 +335,6 @@
         }
         renderConnection();
         renderMenuBarStatus();
-        renderQuota();
         setStatus();
       }
 
@@ -574,36 +388,6 @@
       });
       document.getElementById("open-menu-bar-settings").addEventListener("click", async () => {
         await window.companionSettings.openMenuBarSettings();
-      });
-      document.querySelectorAll(".quota-preset").forEach((button) => {
-        button.addEventListener("click", () => {
-          state.quotaCustomOpen = false;
-          void update({
-            quotaHealthMode: "linked",
-            quotaHealthyLeadDays: Number(button.dataset.healthy)
-          });
-        });
-      });
-      document.getElementById("quota-custom-toggle").addEventListener("click", () => {
-        state.quotaCustomOpen = !state.quotaCustomOpen;
-        renderQuota();
-      });
-      document.getElementById("quotaHealthyLeadDays").addEventListener("change", (event) => {
-        void update({
-          quotaHealthMode: state.settings.quotaHealthMode,
-          quotaHealthyLeadDays: Number(event.target.value)
-        });
-      });
-      document.getElementById("custom-warning-enabled").addEventListener("change", (event) => {
-        void update({
-          quotaHealthMode: event.target.checked ? "custom" : "linked"
-        });
-      });
-      document.getElementById("quotaWarningLeadDays").addEventListener("change", (event) => {
-        void update({
-          quotaHealthMode: "custom",
-          quotaWarningLeadDays: Number(event.target.value)
-        });
       });
       window.companionSettings.onChanged((next) => render(next));
       window.companionSettings.get().then(render);

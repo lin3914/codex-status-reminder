@@ -161,6 +161,7 @@ context.copyFor = () => ({
   completionNotifications: "任务完成提醒", openCodex: "打开 Codex", quit: "退出"
 });
 for (const [from, to] of [
+  ["function quotaForDisplay(", "\nfunction dotSnapshot("],
   ["function menuBarStatePayload(", "\nfunction updateMenuBarAppearance("],
   ["function trayMenuTemplate(", "\nfunction horizontalIntersectionWidth("],
   ["function createMenuBarTray(", "\nfunction menuBarTrayIsHealthy("]

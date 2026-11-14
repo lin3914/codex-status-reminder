@@ -21,7 +21,7 @@ export function auditPublicSource(root) {
         continue;
       }
       files++;
-      if (/^(?:auth|settings|quota-cache|completion-notification-state|resource-diagnostics)\.json$/.test(item.name)
+      if (/^(?:auth|settings|quota-cache|token-usage-v\d+|completion-notification-state|resource-diagnostics)\.json$/.test(item.name)
         || /\.(?:p12|pfx|pem|key|sqlite(?:-\w+)?|db|jsonl|log)$/.test(item.name)
         || /^\.env(?:\.|$)/.test(item.name)) findings.push(rel + ": sensitive file type");
       if (binaryExtensions.has(path.extname(item.name))) {

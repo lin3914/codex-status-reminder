@@ -68,6 +68,9 @@ function harness() {
     quitting: false,
     panelWindow: null, panelAnchor: null, panelRendererReady: false, panelClockTimer: null,
     speedDisplayTimer: null, scheduleSpeedDisplay() {},
+    scheduleSpeedSourceCheck() {
+      context.lastSpeedPanelVisibility = Boolean(context.panelWindow?.isVisible());
+    },
     panelHiddenSince: null, panelSnapshotJSON: null, panelPresentationID: 0,
     panelPresentationSentKey: null, panelLastFrameLatencyMs: null,
     panelLastRendererMemoryKB: null, panelMemoryReleaseCount: 0, panelPrewarmCount: 0,
@@ -134,6 +137,7 @@ assert.equal(first.webContents.messages.at(-1).channel, "companion:panel-present
 h.advance(12);
 h.present();
 assert.equal(first.visible, true, "prepared presentation shows without an arbitrary delay");
+assert.equal(c.lastSpeedPanelVisibility, true, "the faster check starts when the panel is actually shown");
 assert.equal(c.panelLastOpenLatencyMs, 12);
 assert.equal(h.timers.size, 0, "showing a measured card must not schedule a fixed-delay timer");
 h.message({ type: "frame", presentationID: c.panelPresentationID, renderRevision: c.panelRenderRevision, latencyMs: 18 });
@@ -142,6 +146,7 @@ assert.equal(c.panelLastFrameLatencyMs, 18);
 assert.equal(c.toggleTrayPanel(), "closed");
 assert.equal(first.destroyed, false);
 assert.equal(first.visible, false);
+assert.equal(c.lastSpeedPanelVisibility, false, "closing restores the quiet background cadence");
 assert.equal(c.panelAnchor, null);
 assert.equal(h.timers.size, 0, "there is no fixed idle-destruction timer");
 const unchangedMessages = first.webContents.messages.length;
