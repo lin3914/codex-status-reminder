@@ -22,7 +22,8 @@ try{
   const source=fs.readFileSync(path.join(__dirname,"../../ElectronApp/main.js"),"utf8");
   const start=source.indexOf("function scheduleSpeedDisplay()"),end=source.indexOf("function sendDotSnapshot()",start);
   let visible=false,scheduled=0,sends=0;
-  const ctx={quitting:false,speedDisplayTimer:null,snapshot:{tasks:[{state:"running"}]},
+  const ctx={quitting:false,systemSleeping:false,screenLocked:false,speedDisplayTimer:null,snapshot:{tasks:[{state:"running"}]},
+    Date, settings:{tokenSpeedWindowSeconds:30},nextSpeedUpdateDelay:tasks=>tasks.some(task=>task.state==="running")?1000:null,
     panelWindow:{isDestroyed:()=>false,isVisible:()=>visible},clearTimeout(){},setTimeout(fn,ms){scheduled++;assert.equal(ms,1000);return{fn,unref(){}};},sendPanelSnapshot(){sends++;}};
   vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);
   ctx.scheduleSpeedDisplay();assert.equal(scheduled,0,"no hidden polling");

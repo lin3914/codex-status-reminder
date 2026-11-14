@@ -65,31 +65,6 @@ body {
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
-.status-dot-button.is-watch {
-  --center-fill: #fff6da;
-  --dot-ink: #574316;
-  --quota-ring-start: #efd97c;
-  --quota-ring-mid: #dfc666;
-  --quota-ring-end: #c9a43d;
-}
-
-.status-dot-button.is-critical {
-  --center-fill: #ffe7d8;
-  --dot-ink: #582f1b;
-  --quota-ring-start: #efaa7d;
-  --quota-ring-mid: #df8962;
-  --quota-ring-end: #cf6846;
-}
-
-.status-dot-button.is-neutral {
-  --center-fill: #edf5f4;
-  --dot-ink: #2a4146;
-  --ring-track: #b6d6da;
-  --quota-ring-start: #a8c7cb;
-  --quota-ring-mid: #86a9af;
-  --quota-ring-end: #638b94;
-}
-
 .status-dot-button.is-dragging,
 .status-dot-button:active {
   cursor: grabbing;

@@ -299,6 +299,9 @@ fi
 /bin/mkdir -p "$resources_dir/Worker"
 /bin/cp "$project_dir/ElectronApp/task-data-worker.js" "$resources_dir/Worker/"
 /bin/cp "$project_dir/ElectronApp/token-speed.js" "$resources_dir/Worker/"
+/bin/cp "$project_dir/ElectronApp/turn-average-backfill.js" "$resources_dir/Worker/"
+/bin/cp "$project_dir/ElectronApp/token-usage.js" "$resources_dir/Worker/"
+/bin/cp "$project_dir/ElectronApp/task-classification.js" "$resources_dir/Worker/"
 /bin/cp "$project_dir/ElectronApp/codex-state.js" "$resources_dir/Worker/"
 /bin/cp "$project_dir/ElectronApp/quota-data-worker.js" "$resources_dir/Worker/"
 /bin/cp "$project_dir/ElectronApp/codex-app-server-client.js" "$resources_dir/Worker/"
@@ -332,8 +335,8 @@ NODE
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.lindaozhi.codexstatusreminder" "$info_plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile icon.icns" "$info_plist" 2>/dev/null \
   || /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string icon.icns" "$info_plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.9.16" "$info_plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 68" "$info_plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.9.17" "$info_plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 79" "$info_plist"
 if ! /usr/libexec/PlistBuddy \
   -c "Set :ElectronAsarIntegrity:Resources/app.asar:hash $asar_hash" \
   "$info_plist" 2>/dev/null; then

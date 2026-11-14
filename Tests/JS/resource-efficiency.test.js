@@ -55,7 +55,7 @@ assert.match(
 );
 assert.match(
   main,
-  /result\.rateLimits && !snapshot\.quota\.available/,
+  /result\.rateLimits && !quotaForDisplay\(\)\.available/,
   "legacy transcript quota must never overwrite a live official snapshot"
 );
 assert.match(

@@ -48,79 +48,6 @@
       let dragging = false;
       let hovered = false;
 
-      // Keep the status label discrete, but interpolate the visual palette
-      // continuously from healthy green through watch yellow to critical
-      // orange. The class remains the fallback for older snapshots or the
-      // neutral/unavailable state.
-      const healthPalettes = {
-        healthy: {
-          // A single cool track is shared by both bands so the seam is a
-          // continuous base colour instead of two pale strokes stacked on
-          // top of each other.
-          track: [165, 223, 228],
-          start: [105, 238, 174],
-          mid: [69, 221, 160],
-          end: [39, 204, 143],
-          center: [232, 255, 247],
-          ink: [16, 63, 55],
-        },
-        watch: {
-          track: [165, 223, 228],
-          start: [239, 217, 124],
-          mid: [223, 198, 102],
-          end: [201, 164, 61],
-          center: [255, 246, 218],
-          ink: [87, 67, 22],
-        },
-        critical: {
-          track: [165, 223, 228],
-          start: [239, 170, 125],
-          mid: [223, 137, 98],
-          end: [207, 104, 70],
-          center: [255, 231, 216],
-          ink: [88, 47, 27],
-        },
-      };
-      const healthColorProperties = {
-        track: "--ring-track",
-        start: "--quota-ring-start",
-        mid: "--quota-ring-mid",
-        end: "--quota-ring-end",
-        center: "--center-fill",
-        ink: "--dot-ink",
-      };
-
-      const clampUnit = (value) => Math.max(0, Math.min(1, value));
-      const mixColor = (left, right, amount) => left.map((channel, index) =>
-        Math.round(channel + (right[index] - channel) * amount));
-      const colorString = (rgb) => `rgb(${rgb.join(", ")})`;
-
-      const applyHealthColors = (rawProgress) => {
-        const progress = Number(rawProgress);
-        if (!Number.isFinite(progress)) {
-          Object.values(healthColorProperties).forEach((property) => {
-            dot.style.removeProperty(property);
-          });
-          return;
-        }
-        const valueProgress = clampUnit(progress);
-        const left = valueProgress <= 0.5
-          ? healthPalettes.healthy
-          : healthPalettes.watch;
-        const right = valueProgress <= 0.5
-          ? healthPalettes.watch
-          : healthPalettes.critical;
-        const blendProgress = valueProgress <= 0.5
-          ? valueProgress * 2
-          : (valueProgress - 0.5) * 2;
-        Object.entries(healthColorProperties).forEach(([key, property]) => {
-          dot.style.setProperty(
-            property,
-            colorString(mixColor(left[key], right[key], blendProgress)),
-          );
-        });
-      };
-
       const send = (payload) => {
         window.webkit?.messageHandlers?.dot?.postMessage(payload);
       };
@@ -128,12 +55,10 @@
       window.renderStatusDot = (state) => {
         document.documentElement.lang = state?.locale || "zh-CN";
         document.title = state?.appName || "CodeX状态提醒";
-        const health = state?.health || "neutral";
         const taskClass = state?.runningCount > 0
           ? "has-active-tasks"
           : state?.unreadCount > 0 ? "has-unread-tasks" : "is-idle";
-        dot.className = `status-dot-button is-${health} ${taskClass}${dragging ? " is-dragging" : ""}`;
-        applyHealthColors(state?.healthProgress);
+        dot.className = `status-dot-button ${taskClass}${dragging ? " is-dragging" : ""}`;
         dot.setAttribute("aria-label", state?.accessibilityLabel || "Codex 状态");
         timeRing.style.strokeDashoffset = String(-(100 - (state?.timeRemainingPercent || 0)));
         quotaRing.style.strokeDashoffset = String(-(100 - (state?.quotaRemainingPercent || 0)));

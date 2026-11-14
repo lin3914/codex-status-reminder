@@ -18,7 +18,7 @@ const context = { ...classification, speedPanel, Date, Set, Map,
   cleanDisplayText: text => text, syncTranscriptWatchers() {},
   handleCompletionNotifications: async (_tasks, receipts) => {notifiedReceipts = receipts;},
   broadcastSnapshot: () => {broadcasts++;}, refreshTrayMenu() {}, sendSettingsSnapshot() {},
-  persistResourceDiagnostics() {}, scheduleTaskRefresh() {},
+  persistResourceDiagnostics() {}, scheduleTaskRefresh() {}, scheduleSpeedSourceCheck() {}, scheduleUsageRefresh() {},
   panelDirection: "down", panelArrowX: 100, effectiveLocale: () => "zh-CN",
   copyFor: () => ({appName: "CodeX状态提醒", unread: "待查看", running: "进行中",
     completed: "已处理", syncing: "待同步", health: {neutral: ["待同步", "待同步"]}})
@@ -26,7 +26,7 @@ const context = { ...classification, speedPanel, Date, Set, Map,
 vm.createContext(context);
 for (const [from, to] of [["function taskRank(", "function taskDataWorkerResourcesPath("],
   ["async function refreshTasks(", "function scheduleTaskRefresh("],
-  ["function dotSnapshot(", "function sendDotSnapshot("]]) {
+  ["function quotaForDisplay(", "function scheduleSpeedSourceCheck("]]) {
   const begin = source.indexOf(from), end = source.indexOf(to, begin);
   assert(begin >= 0 && end > begin); vm.runInContext(source.slice(begin, end), context);
 }

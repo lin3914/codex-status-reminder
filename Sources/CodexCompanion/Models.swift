@@ -1,7 +1,7 @@
 import Foundation
 
 enum CompanionVersion {
-    static let current = "1.9.16"
+    static let current = "1.9.17"
 }
 
 enum PopoverDirection {

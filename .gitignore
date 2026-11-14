@@ -29,4 +29,5 @@ settings.json
 menu-bar-runtime-*.json
 resource-diagnostics.json
 quota-cache.json
+token-usage-v*.json
 completion-notification-state.json

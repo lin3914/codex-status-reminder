@@ -41,8 +41,8 @@ assert.match(generator, /const ringOpeningStartDegrees = 31\.6/);
 assert.match(generator, /const ringOpeningEndDegrees = 78\.4/);
 assert.match(generator, /const healthGradientColor = \(amount\) =>/);
 assert.match(generator, /const ringHealthProgress = \(progress\) =>/);
-assert.match(dotHTML, /const healthPalettes = \{/);
-assert.match(dotHTML, /const applyHealthColors = \(rawProgress\) =>/);
+assert.doesNotMatch(dotHTML, /healthPalettes|applyHealthColors|healthProgress/);
+assert.doesNotMatch(dotCSS, /is-watch|is-critical/);
 
 for (const gradient of ["time", "quota"]) {
   const pattern = new RegExp(
@@ -57,9 +57,6 @@ for (const gradient of ["time", "quota"]) {
 for (const variable of [
   "--time-ring-mid: #49d7e9",
   "--quota-ring-mid: #45dda0",
-  "--quota-ring-mid: #dfc666",
-  "--quota-ring-mid: #df8962",
-  "--quota-ring-mid: #86a9af",
 ]) {
   assert.match(dotCSS, new RegExp(variable.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 }

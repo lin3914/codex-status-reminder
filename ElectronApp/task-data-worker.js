@@ -5,6 +5,8 @@ const path = require("path");
 const { isMainThread, parentPort, workerData } = require("worker_threads");
 const { DatabaseSync } = require("node:sqlite");
 const { emptySpeed, observeSpeed } = require("./token-speed");
+const { TurnAverageBackfill } = require("./turn-average-backfill");
+const { UsageIndex } = require("./token-usage");
 const {
   buildChangedThreadQuery,
   buildThreadQuery,
@@ -240,7 +242,35 @@ class IncrementalTranscriptReader {
 
   backfillSpeed(filePath, budget) {
     const cached = this.cache.get(filePath);
-    if (!cached || cached.speedBackfilled || cached.observation.tokenSpeed.completeStart) return 0;
+    if (!cached) return 0;
+    const current = cached.observation.tokenSpeed;
+    if (current.completeStart) {
+      cached.averageBackfill = null;
+      current.historyPending = false;
+      return 0;
+    }
+    if (cached.speedBackfilled) {
+      const recovery = cached.averageBackfill;
+      if (!recovery || recovery.done) return 0;
+      if (budget <= 0) return -1;
+      try {
+        const used = recovery.step(filePath, budget, this.readRange.bind(this));
+        current.historyPending = !recovery.done;
+        if (recovery.done) {
+          current.turnAverage = recovery.result;
+          if (current.previous === null && recovery.result.latestTotal !== null) {
+            current.previous = recovery.result.latestTotal;
+            current.hasUsage = true;
+          }
+          cached.averageBackfill = null;
+        }
+        return used;
+      } catch {
+        cached.averageBackfill = null;
+        current.historyPending = false;
+        return 0;
+      }
+    }
     const bytes = Math.min(cached.offset, 8 * 1024 * 1024);
     if (bytes > budget) return -1;
     cached.speedBackfilled = true;
@@ -256,6 +286,12 @@ class IncrementalTranscriptReader {
         try { observeSpeed(speed, JSON.parse(line)); } catch {}
       }
       cached.observation.tokenSpeed = speed;
+      if (!speed.completeStart && start > 0) {
+        cached.averageBackfill = new TurnAverageBackfill({
+          endOffset: cached.offset, endedAt: speed.endedAt, turnId: speed.turnId
+        });
+        speed.historyPending = true;
+      }
     } catch {}
     return bytes;
   }
@@ -308,9 +344,10 @@ class IncrementalTranscriptReader {
 }
 
 class TaskDataReader {
-  constructor({ codexHome, globalStatePath }) {
+  constructor({ codexHome, globalStatePath, usageCachePath = null }) {
     this.codexHome = codexHome;
     this.globalStatePath = globalStatePath;
+    this.usageCachePath = usageCachePath;
     this.databasePath = null;
     this.database = null;
     this.databaseIdentity = null;
@@ -320,6 +357,7 @@ class TaskDataReader {
     this.updatedCursor = 0;
     this.lastFullRefreshAt = 0;
     this.lastUnreadSignature = "";
+    this.usageIndex = null;
   }
 
   close() {
@@ -335,6 +373,7 @@ class TaskDataReader {
     this.updatedCursor = 0;
     this.lastFullRefreshAt = 0;
     this.lastUnreadSignature = "";
+    this.usageIndex = null;
   }
 
   resolveStateDatabasePath() {
@@ -404,6 +443,38 @@ class TaskDataReader {
     }
   }
 
+  checkActive(threadIDs = []) {
+    const startedAt = Date.now();
+    const paths = new Set();
+    for (const id of threadIDs) {
+      const filePath = this.rowsById.get(id)?.rollout_path;
+      if (typeof filePath === "string" && filePath) paths.add(filePath);
+    }
+    let changed = false;
+    for (const filePath of paths) {
+      const cached = this.transcripts.cache.get(filePath);
+      try {
+        const stats = fs.statSync(filePath);
+        if (!cached || cached.dev !== stats.dev || cached.ino !== stats.ino
+            || cached.offset !== stats.size || cached.mtimeMs !== stats.mtimeMs) {
+          changed = true;
+        }
+      } catch {
+        if (cached) changed = true;
+      }
+    }
+    // A heartbeat checks metadata only. A detected change goes through the
+    // existing serialized refresh, preserving unread/terminal/progress logic.
+    // No SQLite query, auth/read-state read, JSONL parse or sample copy here.
+    return { changed, checkedPaths: paths.size, durationMs: Date.now() - startedAt };
+  }
+
+  usage(threadIDs, recheck) {
+    if (!this.database) this.ensureDatabase();
+    if (!this.usageIndex) this.usageIndex = new UsageIndex(this.codexHome, this.usageCachePath);
+    return this.usageIndex.read(this.database, this.columns, threadIDs, { recheck });
+  }
+
   refresh() {
     const startedAt = Date.now();
     const unread = this.readUnreadState();
@@ -471,8 +542,9 @@ class TaskDataReader {
       }
     }
     this.transcripts.prune(keepPaths);
-    // One bounded, worker-only lookback for the displayed recent rows and
-    // active tasks. No full-history scan and no repeated reread of old files.
+    // Worker-only lookback for displayed recent rows and active tasks. Share
+    // an 8 MiB refresh budget; recover long-turn boundaries in 256 KiB chunks
+    // across refreshes, stopping at the latest turn's counter baseline.
     let speedBudget = 8 * 1024 * 1024;
     let speedBackfillPending = false;
     for (const [index, row] of rows.entries()) {
@@ -480,6 +552,7 @@ class TaskDataReader {
       const used = this.transcripts.backfillSpeed(row.rollout_path, speedBudget);
       if (used < 0) speedBackfillPending = true;
       else speedBudget -= used;
+      if (row.observation.tokenSpeed.historyPending) speedBackfillPending = true;
     }
     return {
       unread,
@@ -504,11 +577,15 @@ if (!isMainThread) {
       process.exit(0);
       return;
     }
-    if (message?.type !== "refresh" || !message.id) return;
+    if (!["refresh", "check-active", "usage"].includes(message?.type) || !message.id) return;
     try {
       parentPort.postMessage({
         id: message.id,
-        result: reader.refresh()
+        result: message.type === "check-active"
+          ? reader.checkActive(Array.isArray(message.threadIDs) ? message.threadIDs : [])
+          : message.type === "usage"
+            ? reader.usage(Array.isArray(message.threadIDs) ? message.threadIDs : [], message.recheck === true)
+          : reader.refresh()
       });
     } catch (error) {
       parentPort.postMessage({

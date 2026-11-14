@@ -49,6 +49,9 @@ try {
   const auditDir = fs.mkdtempSync(path.join(temp, "audit-"));
   fs.writeFileSync(path.join(auditDir, "auth.json"), "{}");
   assert(auditPublicSource(auditDir).findings.some(x => x.includes("sensitive file")));
+  fs.writeFileSync(path.join(auditDir, "token-usage-v1.json"), "{}");
+  assert(auditPublicSource(auditDir).findings.some(x => x.startsWith("token-usage-v1.json:")),
+    "the local usage index must never enter the public source export");
   const release = fs.readFileSync(path.join(root, ".github/workflows/release-macos.yml"), "utf8");
   assert.match(release, /environment: release/);
   assert.match(release, /--draft --prerelease/);

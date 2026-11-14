@@ -98,20 +98,8 @@ assert.doesNotMatch(main, /settings\.showHoverPanel|settings\.alwaysOnTop|settin
 assert.doesNotMatch(main, /settings-reset-position|settings-test-notification|settings-export-diagnostics|settings-restore-recommended/);
 assert.doesNotMatch(preload, /resetPosition|testNotification|restoreRecommended|exportDiagnostics/);
 
-for (const leadDays of ["0.25", "0.5", "1"]) {
-  assert.match(html, new RegExp(`data-healthy="${leadDays}"`));
-}
-assert.equal(
-  (html.match(/class="quota-segment /g) || []).length,
-  3,
-  "quota health must use three named ranges"
-);
-assert.match(html, /id="custom-warning-enabled"/);
-assert.match(html, /quotaHealthyLeadDays \?\? 0\.5/, "zero hours must not render as the 12-hour default");
-assert.match(html, /quotaWarningLeadDays/);
-assert.match(html, /正常使用/);
-assert.match(html, /需留意/);
-assert.match(html, /额度告警/);
+assert.doesNotMatch(html, /quota-health-title|quotaHealthyLeadDays|quotaWarningLeadDays|额度告警/);
+assert.doesNotMatch(main, /evaluateQuotaHealth|refreshSnapshotQuotaHealth/);
 assert.match(html, /id="notification-delivery"/);
 
 assert.match(html, /connection\.manualSelectionAvailable !== true/);

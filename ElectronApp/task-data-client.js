@@ -4,10 +4,11 @@ const path = require("path");
 const { Worker } = require("worker_threads");
 
 class TaskDataClient {
-  constructor({ codexHome, globalStatePath, resourcesPath = null }) {
+  constructor({ codexHome, globalStatePath, resourcesPath = null, usageCachePath = null }) {
     this.codexHome = codexHome;
     this.globalStatePath = globalStatePath;
     this.resourcesPath = resourcesPath;
+    this.usageCachePath = usageCachePath;
     this.worker = null;
     this.nextId = 1;
     this.pending = new Map();
@@ -25,7 +26,8 @@ class TaskDataClient {
     const worker = new Worker(this.workerPath(), {
       workerData: {
         codexHome: this.codexHome,
-        globalStatePath: this.globalStatePath
+        globalStatePath: this.globalStatePath,
+        usageCachePath: this.usageCachePath
       }
     });
     this.worker = worker;
@@ -46,6 +48,18 @@ class TaskDataClient {
   }
 
   refresh() {
+    return this.request("refresh");
+  }
+
+  checkActive(threadIDs) {
+    return this.request("check-active", { threadIDs });
+  }
+
+  usage(threadIDs, recheck) {
+    return this.request("usage", { threadIDs, recheck });
+  }
+
+  request(type, payload = {}) {
     this.start();
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
@@ -55,7 +69,7 @@ class TaskDataClient {
         }
       }, 10_000);
       this.pending.set(id, { resolve, reject, timer });
-      this.worker.postMessage({ type: "refresh", id });
+      this.worker.postMessage({ ...payload, type, id });
     });
   }
 
